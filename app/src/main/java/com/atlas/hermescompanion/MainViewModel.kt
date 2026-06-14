@@ -422,6 +422,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             session.setBoard(board)
             loadSessions()
             loadBoards()
+            loadTasks(board)
         }
     }
     fun clearSelectedTask() { _selectedTask.value = null }
