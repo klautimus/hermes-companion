@@ -86,8 +86,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val ses = json.decodeFromString<SessionsList>(raw).data.firstOrNull()
                 ses?.let { s ->
                     _activeSessionId.value = s.id
-                    _chatMessages.value = emptyList()
-                    loadSessionHistory(s.id)
+                    _chatMessages.value = loadSessionHistory(s.id)
                 }
             } catch (e: Exception) {
                 _chatError.value = e.message
@@ -98,22 +97,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Select an existing session and load its history. */
     fun selectSession(id: String) {
         _activeSessionId.value = id
-        _chatMessages.value = emptyList()
-        loadSessionHistory(id)
+        viewModelScope.launch {
+            _chatMessages.value = loadSessionHistory(id)
+        }
     }
 
-    private fun loadSessionHistory(sessionId: String) {
-        val c = client() ?: return
-        viewModelScope.launch {
-            try {
-                val raw = c.get("/api/sessions/$sessionId/messages")
-                val data = json.decodeFromString<SessionMessages>(raw).data
-                _chatMessages.value = data.map { m ->
-                    ChatMessage(m.role, m.content, sessionId = sessionId)
-                }
-            } catch (e: Exception) {
-                _chatError.value = "History load failed: ${e.message}"
+    /** Suspend — returns loaded messages (or empty on error). Callers decide when to set _chatMessages. */
+    private suspend fun loadSessionHistory(sessionId: String): List<ChatMessage> {
+        val c = client() ?: return emptyList()
+        return try {
+            val raw = c.get("/api/sessions/$sessionId/messages")
+            json.decodeFromString<SessionMessages>(raw).data.map { m ->
+                ChatMessage(m.role, m.content, sessionId = sessionId)
             }
+        } catch (e: Exception) {
+            _chatError.value = "History load failed: ${e.message}"
+            emptyList()
         }
     }
 
@@ -122,15 +121,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val c = client() ?: return
         _chatError.value = null
         viewModelScope.launch {
-            // Ensure session exists before sending
+            // Ensure session exists before sending — await history so messages aren't wiped
             if (_activeSessionId.value == null) {
                 try {
                     val raw = c.post("/api/sessions", "{}")
                     val ses = json.decodeFromString<SessionsList>(raw).data.firstOrNull()
-                    ses?.let { s ->
-                        _activeSessionId.value = s.id
-                        _chatMessages.value = emptyList()
-                        loadSessionHistory(s.id)
+                    if (ses != null) {
+                        _activeSessionId.value = ses.id
+                        _chatMessages.value = loadSessionHistory(ses.id)
+                    } else {
+                        _chatError.value = "Failed to create session"
+                        return@launch
                     }
                 } catch (e: Exception) {
                     _chatError.value = e.message
