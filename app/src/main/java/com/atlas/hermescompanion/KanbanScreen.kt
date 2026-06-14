@@ -102,8 +102,8 @@ fun KanbanScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
     }
 
     // Task detail bottom sheet
-    if (detailSheet && selectedTask != null) {
-        val task = selectedTask!!
+    selectedTask?.let { task ->
+        if (detailSheet) {
         ModalBottomSheet(onDismissRequest = { detailSheet = false; viewModel.clearSelectedTask() }) {
             Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
                 Text(task.title, style = MaterialTheme.typography.headlineSmall)
@@ -179,6 +179,7 @@ fun KanbanScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
+        }  // let
     }
 }
 

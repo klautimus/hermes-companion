@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "hermes_settings")
@@ -12,7 +13,7 @@ class SessionManager(private val context: Context) {
     companion object {
         const val DEFAULT_URL = "https://android.kevlarscreations.com/android"
         const val DEFAULT_USERNAME = "kevin"
-        const val DEFAULT_PASSWORD = "Kevi667n!1991!"
+        const val DEFAULT_PASSWORD = ""  // No default — user must set in Settings
         const val DEFAULT_BOARD = "default"
     }
 
@@ -45,24 +46,14 @@ class SessionManager(private val context: Context) {
     private var cachedPassword: String = DEFAULT_PASSWORD
 
     suspend fun getPasswordCached(): String {
-        // On first call, read from DataStore
         if (cachedPassword == DEFAULT_PASSWORD) {
-            context.dataStore.data.collect {
-                val stored = it[KEY_PASSWORD]
-                if (stored != null) cachedPassword = stored
-            }
+            cachedPassword = context.dataStore.data.first()[KEY_PASSWORD] ?: DEFAULT_PASSWORD
         }
         return cachedPassword
     }
 
     // Simpler: expose latest value via a direct read
     suspend fun getPasswordSnapshot(): String {
-        var result = DEFAULT_PASSWORD
-        context.dataStore.data.collect { prefs ->
-            result = prefs[KEY_PASSWORD] ?: DEFAULT_PASSWORD
-            // break after first emission
-            throw kotlinx.coroutines.CancellationException()
-        }
-        return result
+        return context.dataStore.data.first()[KEY_PASSWORD] ?: DEFAULT_PASSWORD
     }
 }

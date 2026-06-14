@@ -35,6 +35,8 @@ fun ChatScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
     var showDrawer by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    LaunchedEffect(Unit) { vm.loadSessions() }
+
     Column(modifier = modifier.fillMaxSize()) {
         // Session drawer
         if (showDrawer) {

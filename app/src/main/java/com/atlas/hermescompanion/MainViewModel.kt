@@ -120,23 +120,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Send a message in the active session using non-streaming chat. */
     fun sendMessage(content: String) {
         val c = client() ?: return
-        val sid = _activeSessionId.value ?: run { newSession(); return }
         _chatError.value = null
-
-        // Add user message immediately
-        val userMsg = ChatMessage("user", content, sessionId = sid)
-        _chatMessages.value = _chatMessages.value + userMsg
-
-        // Placeholder for response
-        val assistantMsg = ChatMessage("assistant", "", isStreaming = true, sessionId = sid)
-        _chatMessages.value = _chatMessages.value + assistantMsg
-        _isStreaming.value = true
-
-        val history = _chatMessages.value
-            .filter { !it.isStreaming && it.sessionId == sid }
-            .map { mapOf("role" to it.role, "content" to it.content) }
-
         viewModelScope.launch {
+            // Ensure session exists before sending
+            if (_activeSessionId.value == null) {
+                try {
+                    val raw = c.post("/api/sessions", "{}")
+                    val ses = json.decodeFromString<SessionsList>(raw).data.firstOrNull()
+                    ses?.let { s ->
+                        _activeSessionId.value = s.id
+                        _chatMessages.value = emptyList()
+                        loadSessionHistory(s.id)
+                    }
+                } catch (e: Exception) {
+                    _chatError.value = e.message
+                    return@launch
+                }
+            }
+            val sid = _activeSessionId.value ?: return@launch
+
+            // Add user message immediately
+            val userMsg = ChatMessage("user", content, sessionId = sid)
+            _chatMessages.value = _chatMessages.value + userMsg
+
+            // Placeholder for response
+            val assistantMsg = ChatMessage("assistant", "", isStreaming = true, sessionId = sid)
+            _chatMessages.value = _chatMessages.value + assistantMsg
+            _isStreaming.value = true
+
+            val history = _chatMessages.value
+                .filter { !it.isStreaming && it.sessionId == sid }
+                .map { mapOf("role" to it.role, "content" to it.content) }
+
             try {
                 val reply = c.chat(history)
                 _isStreaming.value = false
@@ -177,13 +192,86 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ─── Kanban Actions ─────────────────────────────────────
-    fun loadBoards() { /* existing */ }
-    fun loadTasks(board: String? = null) { /* existing */ }
-    fun loadTask(taskId: String) { /* existing */ }
-    fun completeTask(taskId: String) { /* existing */ }
-    fun commentOnTask(taskId: String, text: String) { /* existing */ }
-    fun assignTask(taskId: String, assignee: String) { /* existing */ }
-    fun setBoard(board: String) { /* existing */ }
+    fun loadBoards() {
+        val c = client() ?: return
+        _kanbanError.value = null
+        viewModelScope.launch {
+            try {
+                val raw = c.get("/api/kanban/boards")
+                _boards.value = json.decodeFromString<List<KanbanBoard>>(raw)
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+    fun loadTasks(board: String? = null) {
+        val c = client() ?: return
+        val b = board ?: boardSlug.value
+        _kanbanError.value = null
+        viewModelScope.launch {
+            try {
+                val raw = c.get("/api/kanban/tasks?board=$b")
+                _tasks.value = json.decodeFromString<List<KanbanTask>>(raw)
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+    fun loadTask(taskId: String) {
+        val c = client() ?: return
+        val b = boardSlug.value
+        viewModelScope.launch {
+            try {
+                val raw = c.get("/api/kanban/tasks/$taskId?board=$b")
+                _selectedTask.value = json.decodeFromString<TaskShowResponse>(raw)
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+    fun completeTask(taskId: String) {
+        val c = client() ?: return
+        _kanbanError.value = null
+        viewModelScope.launch {
+            try {
+                c.post("/api/kanban/tasks/$taskId/complete?board=${boardSlug.value}")
+                loadTasks()
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+    fun commentOnTask(taskId: String, text: String) {
+        val c = client() ?: return
+        viewModelScope.launch {
+            try {
+                val body = "{\"text\":\"${text.replace("\"", "\\\"")}\"}"
+                c.post("/api/kanban/tasks/$taskId/comment?board=${boardSlug.value}", body)
+                loadTask(taskId)  // Refresh the task to see new comment
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+    fun assignTask(taskId: String, assignee: String) {
+        val c = client() ?: return
+        viewModelScope.launch {
+            try {
+                val body = "{\"assignee\":\"$assignee\"}"
+                c.post("/api/kanban/tasks/$taskId/assign?board=${boardSlug.value}", body)
+                loadTasks()
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+    fun setBoard(board: String) {
+        viewModelScope.launch {
+            session.setBoard(board)
+            loadSessions()
+            loadBoards()
+        }
+    }
     fun clearSelectedTask() { _selectedTask.value = null }
 
     fun saveSettings(url: String, user: String, password: String) {

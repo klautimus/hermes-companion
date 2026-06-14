@@ -27,7 +27,7 @@ data class KanbanTask(
     val id: String = "",
     val title: String = "",
     val status: String = "",
-    @SerialName("assignee") val assignee: String? = null,
+    val assignee: String? = null,
     val priority: Int = 1,
     val body: String? = null,
     val created: String? = null,
@@ -67,11 +67,6 @@ data class HermesSession(
     val model: String? = null,
     @SerialName("started_at") val startedAt: Double? = null,
     @SerialName("message_count") val messageCount: Int = 0,
-)
-
-@Serializable
-data class SessionsResponse(
-    val data: List<HermesSession> = emptyList(),
 )
 
 @Serializable

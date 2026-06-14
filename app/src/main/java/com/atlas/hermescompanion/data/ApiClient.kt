@@ -71,8 +71,11 @@ class ApiClient(
 
     private fun parseErr(body: String): String = try {
         json.parseToJsonElement(body).jsonObject["error"]?.jsonObject
-            ?.get("message")?.toString()?.removeSurrounding("\"") ?: body
-    } catch (_: Exception) { body }
+            ?.get("message")?.toString()?.removeSurrounding("\"") ?: "Request failed"
+    } catch (_: Exception) {
+        android.util.Log.w("ApiClient", "Failed to parse error body: ${body.take(200)}")
+        "Request failed"
+    }
 
     // ── Chat: non-streaming ────────────────────────────────
 
@@ -104,7 +107,8 @@ class ApiClient(
                             val content = message?.get("content")
                             cont.resume(content?.toString()?.removeSurrounding("\"") ?: "")
                         } catch (e: Exception) {
-                            cont.resume("(parse error)")
+                            android.util.Log.e("ApiClient", "Failed to parse chat response", e)
+                            cont.resumeWithException(ApiException(response.code, "Failed to parse response"))
                         }
                     } else {
                         cont.resumeWithException(ApiException(response.code, parseErr(body)))
