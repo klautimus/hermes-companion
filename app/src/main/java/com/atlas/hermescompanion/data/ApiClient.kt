@@ -9,7 +9,12 @@ import kotlinx.serialization.json.jsonArray
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.net.ConnectException
+import java.net.SocketException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -28,7 +33,7 @@ class ApiClient(
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(180, TimeUnit.SECONDS)
+        .readTimeout(300, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
@@ -58,9 +63,25 @@ class ApiClient(
         }
     }
 
+    /** Blocking DELETE returning body text. */
+    suspend fun delete(path: String): String = withContext(Dispatchers.IO) {
+        suspendCoroutine { cont ->
+            client.newCall(request(path, "DELETE")).enqueue(reusableCont(cont))
+        }
+    }
+
+    private fun friendlyError(e: java.io.IOException): String = when {
+        e is java.net.SocketTimeoutException -> "Request timed out — check your connection"
+        e is java.net.ConnectException -> "Can't reach server — is Companion running?"
+        e is java.net.UnknownHostException -> "Server address not found — check URL"
+        e is java.net.SocketException -> "Connection lost — please try again"
+        e is javax.net.ssl.SSLException -> "Secure connection failed — check your URL (https?)"
+        else -> e.message ?: "Network error"
+    }
+
     private fun reusableCont(cont: kotlin.coroutines.Continuation<String>) = object : Callback {
         override fun onFailure(call: Call, e: java.io.IOException) {
-            cont.resumeWithException(e)
+            cont.resumeWithException(ApiException(0, friendlyError(e)))
         }
         override fun onResponse(call: Call, response: Response) {
             val body = response.body?.string() ?: ""
@@ -95,7 +116,7 @@ class ApiClient(
         suspendCoroutine { cont ->
             client.newCall(request("/v1/chat/completions", "POST", payload)).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: java.io.IOException) {
-                    cont.resumeWithException(e)
+                    cont.resumeWithException(ApiException(0, friendlyError(e)))
                 }
                 override fun onResponse(call: Call, response: Response) {
                     val body = response.body?.string() ?: ""
@@ -117,6 +138,26 @@ class ApiClient(
             })
         }
     }
+    // ── Attachments: multipart upload ───────────────────────
+
+    /** Upload a file via multipart POST /api/attachments. Returns JSON response. */
+    suspend fun uploadAttachment(data: ByteArray, fileName: String, mimeType: String): String =
+        withContext(Dispatchers.IO) {
+            val body = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("file", fileName,
+                    data.toRequestBody(mimeType.toMediaType()))
+                .build()
+
+            suspendCoroutine { cont ->
+                val req = Request.Builder()
+                    .url("$baseUrl/api/attachments")
+                    .header("Authorization", authHeader)
+                    .method("POST", body)
+                    .build()
+                client.newCall(req).enqueue(reusableCont(cont))
+            }
+        }
 }
 
 class ApiException(val code: Int, override val message: String) : Exception(message)

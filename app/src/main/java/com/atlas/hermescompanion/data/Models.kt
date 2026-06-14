@@ -10,6 +10,7 @@ data class KanbanBoard(
     val description: String = "",
     val counts: KanbanCounts? = null,
     val total: Int = 0,
+    val archived: Boolean = false,
 )
 
 @Serializable
@@ -70,17 +71,6 @@ data class HermesSession(
 )
 
 @Serializable
-data class ApiError(
-    val error: ErrorDetail? = null,
-)
-
-@Serializable
-data class ErrorDetail(
-    val code: String = "",
-    val message: String = "",
-)
-
-@Serializable
 data class CompanionHealth(
     val status: String = "",
     @SerialName("companion_version") val version: String = "",
@@ -91,6 +81,7 @@ data class CompanionHealth(
 @Serializable
 data class SessionsList(
     val data: List<HermesSession> = emptyList(),
+    @SerialName("has_more") val hasMore: Boolean = false,
 )
 
 /** Real chat message stored on the Hermes side. Used to rehydrate history. */

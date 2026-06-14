@@ -10,9 +10,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
+import coil.compose.AsyncImage
 
 @Composable
 fun ChatBubble(message: MainViewModel.ChatMessage) {
@@ -38,14 +41,31 @@ fun ChatBubble(message: MainViewModel.ChatMessage) {
             shape = shape,
             modifier = Modifier.widthIn(max = 320.dp),
         ) {
-            Text(
-                text = buildString {
-                    append(message.content)
-                    if (message.isStreaming) append("▌")
-                },
-                modifier = Modifier.padding(12.dp),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Column {
+                // Inline attachment image
+                message.attachmentUrl?.let { url ->
+                    AsyncImage(
+                        model = url,
+                        contentDescription = "Attached image",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 256.dp)
+                            .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                        contentScale = ContentScale.FillWidth,
+                    )
+                }
+                // Text content (don't show empty bubble for pure image messages)
+                if (message.content.isNotBlank()) {
+                    Text(
+                        text = buildString {
+                            append(message.content)
+                            if (message.isStreaming) append("\u258C")
+                        },
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
         }
     }
 }

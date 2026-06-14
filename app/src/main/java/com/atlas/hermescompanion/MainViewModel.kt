@@ -6,9 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.atlas.hermescompanion.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val session = SessionManager(app)
@@ -23,11 +24,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val boardSlug = session.board.stateIn(viewModelScope, SharingStarted.Eagerly, SessionManager.DEFAULT_BOARD)
 
     // ─── Chat State ─────────────────────────────────────────
+    data class AttachmentMeta(
+        val id: String,
+        val url: String,
+        val mimeType: String,
+        val width: Int,
+        val height: Int,
+    )
+
     data class ChatMessage(
         val role: String,
         val content: String,
         val isStreaming: Boolean = false,
         val sessionId: String? = null,
+        val messageId: String = java.util.UUID.randomUUID().toString(),
+        val attachmentUrl: String? = null,
+        val attachmentMeta: AttachmentMeta? = null,
     )
 
     private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -45,6 +57,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _activeSessionId = MutableStateFlow<String?>(null)
     val activeSessionId: StateFlow<String?> = _activeSessionId.asStateFlow()
+
+    // Search / filtering for session drawer
+    private val _sessionSearchQuery = MutableStateFlow("")
+    val sessionSearchQuery: StateFlow<String> = _sessionSearchQuery.asStateFlow()
+
+    val filteredSessions: StateFlow<List<HermesSession>> = combine(_sessions, _sessionSearchQuery) { all, q ->
+        if (q.isBlank()) all
+        else all.filter { s ->
+            (s.title ?: "").contains(q, ignoreCase = true) ||
+                s.id.contains(q, ignoreCase = true)
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Update the session drawer search query. */
+    fun setSessionSearchQuery(query: String) {
+        _sessionSearchQuery.value = query
+    }
 
     // Derived: messages for the active session only
     val activeMessages: StateFlow<List<ChatMessage>> = combine(_chatMessages, _activeSessionId) { msgs, sid ->
@@ -83,10 +112,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val raw = c.post("/api/sessions", "{}")
-                val ses = json.decodeFromString<SessionsList>(raw).data.firstOrNull()
-                ses?.let { s ->
-                    _activeSessionId.value = s.id
-                    _chatMessages.value = loadSessionHistory(s.id)
+                // Companion normalizes response to {data:[{id:...}]}
+                val id = json.decodeFromString<SessionsList>(raw).data.firstOrNull()?.id
+                if (id != null) {
+                    _activeSessionId.value = id
+                    _chatMessages.value = loadSessionHistory(id)
+                } else {
+                    _chatError.value = "Failed to create session"
                 }
             } catch (e: Exception) {
                 _chatError.value = e.message
@@ -144,8 +176,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val userMsg = ChatMessage("user", content, sessionId = sid)
             _chatMessages.value = _chatMessages.value + userMsg
 
-            // Placeholder for response
-            val assistantMsg = ChatMessage("assistant", "", isStreaming = true, sessionId = sid)
+            // Placeholder for response with unique ID for race-free finalization
+            val msgId = java.util.UUID.randomUUID().toString()
+            val assistantMsg = ChatMessage("assistant", "", isStreaming = true, sessionId = sid, messageId = msgId)
             _chatMessages.value = _chatMessages.value + assistantMsg
             _isStreaming.value = true
 
@@ -156,20 +189,78 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val reply = c.chat(history)
                 _isStreaming.value = false
-                finalizeAssistant(sid, reply)
+                finalizeAssistant(msgId, reply)
             } catch (e: Exception) {
                 _chatError.value = e.message
                 _isStreaming.value = false
-                finalizeAssistant(sid, "(error: ${e.message})")
+                finalizeAssistant(msgId, "(Error: ${e.message})")
             }
         }
     }
 
-    private fun finalizeAssistant(sid: String, text: String) {
-        val idx = _chatMessages.value.lastIndex
-        if (idx >= 0 && _chatMessages.value[idx].sessionId == sid) {
-            _chatMessages.value = _chatMessages.value.toMutableList().apply {
-                set(idx, ChatMessage("assistant", text, sessionId = sid))
+    /** Send a message with an attached image in the active session. */
+    fun sendMessageWithAttachment(content: String, imageBytes: ByteArray, mimeType: String) {
+        val c = client() ?: return
+        _chatError.value = null
+        viewModelScope.launch {
+            try {
+                // Upload attachment first
+                val upResp = c.uploadAttachment(imageBytes, "image.jpg", mimeType)
+                val attJson = json.parseToJsonElement(upResp).jsonObject
+                val attId = attJson["id"]?.jsonPrimitive?.content ?: return@launch
+                val attUrl = "${baseUrl.value}/api/attachments/$attId"
+                val attWidth = attJson["width"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                val attHeight = attJson["height"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                val attMeta = AttachmentMeta(attId, attUrl, mimeType, attWidth, attHeight)
+
+                // Ensure session exists
+                if (_activeSessionId.value == null) {
+                    val raw = c.post("/api/sessions", "{}")
+                    val ses = json.decodeFromString<SessionsList>(raw).data.firstOrNull()
+                    if (ses != null) {
+                        _activeSessionId.value = ses.id
+                        _chatMessages.value = loadSessionHistory(ses.id)
+                    } else {
+                        _chatError.value = "Failed to create session"
+                        return@launch
+                    }
+                }
+                val sid = _activeSessionId.value ?: return@launch
+
+                // Add user message with attachment
+                val userMsg = ChatMessage("user", content, sessionId = sid,
+                    attachmentUrl = attUrl, attachmentMeta = attMeta)
+                _chatMessages.value = _chatMessages.value + userMsg
+
+                // Placeholder for response
+                val msgId = java.util.UUID.randomUUID().toString()
+                val assistantMsg = ChatMessage("assistant", "", isStreaming = true, sessionId = sid, messageId = msgId)
+                _chatMessages.value = _chatMessages.value + assistantMsg
+                _isStreaming.value = true
+
+                val history = _chatMessages.value
+                    .filter { !it.isStreaming && it.sessionId == sid }
+                    .map { mapOf("role" to it.role, "content" to it.content) }
+
+                val reply = c.chat(history)
+                _isStreaming.value = false
+                finalizeAssistant(msgId, reply)
+            } catch (e: Exception) {
+                _chatError.value = e.message
+                _isStreaming.value = false
+            }
+        }
+    }
+
+    /** Replace the streaming placeholder with the final response, identified by unique messageId.
+     *  Uses messageId instead of lastIndex to avoid race conditions when multiple
+     *  sendMessage() calls are in-flight concurrently. */
+    private fun finalizeAssistant(messageId: String, text: String) {
+        _chatMessages.value = _chatMessages.value.map { msg ->
+            if (msg.messageId == messageId && msg.isStreaming) {
+                ChatMessage("assistant", text, sessionId = msg.sessionId, messageId = msg.messageId)
+            } else {
+                msg
             }
         }
     }
@@ -184,8 +275,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val c = client() ?: return
         viewModelScope.launch {
             try {
-                val raw = c.get("/api/sessions")
-                _sessions.value = json.decodeFromString<SessionsList>(raw).data
+                val all = mutableListOf<HermesSession>()
+                var offset = 0
+                var hasMore = true
+                while (hasMore) {
+                    val raw = c.get("/api/sessions?limit=100&offset=$offset")
+                    val list = json.decodeFromString<SessionsList>(raw)
+                    all.addAll(list.data)
+                    hasMore = list.data.size >= 100
+                    offset += list.data.size
+                }
+                _sessions.value = all
             } catch (e: Exception) {
                 _chatError.value = e.message
             }
@@ -200,6 +300,57 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val raw = c.get("/api/kanban/boards")
                 _boards.value = json.decodeFromString<List<KanbanBoard>>(raw)
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+
+    fun createBoard(slug: String, name: String) {
+        val c = client() ?: return
+        _kanbanError.value = null
+        viewModelScope.launch {
+            try {
+                val body = """{"slug":"$slug","name":"$name"}"""
+                c.post("/api/kanban/boards", body)
+                loadBoards()
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+
+    fun renameBoard(slug: String, newName: String) {
+        val c = client() ?: return
+        viewModelScope.launch {
+            try {
+                val body = """{"name":"${newName.replace("\"", "\\\"")}"}"""
+                c.post("/api/kanban/boards/$slug/rename", body)
+                loadBoards()
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+
+    fun archiveBoard(slug: String) {
+        val c = client() ?: return
+        viewModelScope.launch {
+            try {
+                c.post("/api/kanban/boards/$slug/archive")
+                loadBoards()
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+
+    fun deleteBoard(slug: String) {
+        val c = client() ?: return
+        viewModelScope.launch {
+            try {
+                c.delete("/api/kanban/boards/$slug")
+                loadBoards()
             } catch (e: Exception) {
                 _kanbanError.value = e.message
             }
@@ -275,6 +426,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun clearSelectedTask() { _selectedTask.value = null }
 
+    /** Delete a session on the server and remove it from the local list. */
+    fun deleteSession(id: String) {
+        val c = client() ?: return
+        viewModelScope.launch {
+            try {
+                c.delete("/api/sessions/$id")
+                _sessions.value = _sessions.value.filter { it.id != id }
+                if (_activeSessionId.value == id) {
+                    _activeSessionId.value = null
+                    _chatMessages.value = emptyList()
+                }
+            } catch (e: Exception) {
+                _chatError.value = "Delete failed: ${e.message}"
+            }
+        }
+    }
+
     fun saveSettings(url: String, user: String, password: String) {
         viewModelScope.launch {
             session.setBaseUrl(url)
@@ -288,5 +456,4 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ─── Helpers ────────────────────────────────────────────
-    private fun passwordNow() = _password.value
 }

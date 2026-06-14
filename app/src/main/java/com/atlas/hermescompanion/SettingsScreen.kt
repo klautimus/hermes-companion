@@ -32,6 +32,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
 
     var urlInput by remember { mutableStateOf(baseUrl) }
     var userInput by remember { mutableStateOf(username) }
+    var boardInput by remember { mutableStateOf(boardSlug) }
     var passInput by remember { mutableStateOf("") }
     var passVisible by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
@@ -105,6 +106,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
             // Save button
             Button(onClick = {
                 viewModel.saveSettings(urlInput, userInput, passInput)
+                viewModel.setBoard(boardInput)
                 passInput = ""
                 testResult = "Saved ✓"
                 testOk = true
@@ -133,8 +135,8 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
 
         // Board
         OutlinedTextField(
-            value = boardSlug,
-            onValueChange = { viewModel.setBoard(it) },
+            value = boardInput,
+            onValueChange = { boardInput = it },
             label = { Text("Board slug") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
