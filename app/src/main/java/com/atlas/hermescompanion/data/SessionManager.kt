@@ -1,0 +1,68 @@
+package com.atlas.hermescompanion.data
+
+import android.content.Context
+import androidx.datastore.preferences.core.*
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+private val Context.dataStore by preferencesDataStore(name = "hermes_settings")
+
+class SessionManager(private val context: Context) {
+    companion object {
+        const val DEFAULT_URL = "https://android.kevlarscreations.com/android"
+        const val DEFAULT_USERNAME = "kevin"
+        const val DEFAULT_PASSWORD = "Kevi667n!1991!"
+        const val DEFAULT_BOARD = "default"
+    }
+
+    private val KEY_URL = stringPreferencesKey("base_url")
+    private val KEY_USERNAME = stringPreferencesKey("username")
+    private val KEY_PASSWORD = stringPreferencesKey("password")
+    private val KEY_BOARD = stringPreferencesKey("board")
+
+    val baseUrl: Flow<String> = context.dataStore.data.map { it[KEY_URL] ?: DEFAULT_URL }
+    val username: Flow<String> = context.dataStore.data.map { it[KEY_USERNAME] ?: DEFAULT_USERNAME }
+    val password: Flow<String> = context.dataStore.data.map { it[KEY_PASSWORD] ?: DEFAULT_PASSWORD }
+    val board: Flow<String> = context.dataStore.data.map { it[KEY_BOARD] ?: DEFAULT_BOARD }
+
+    suspend fun setBaseUrl(url: String) {
+        context.dataStore.edit { it[KEY_URL] = url }
+    }
+
+    suspend fun setUsername(user: String) {
+        context.dataStore.edit { it[KEY_USERNAME] = user }
+    }
+
+    suspend fun setPassword(pass: String) {
+        context.dataStore.edit { it[KEY_PASSWORD] = pass }
+    }
+
+    suspend fun setBoard(board: String) {
+        context.dataStore.edit { it[KEY_BOARD] = board }
+    }
+
+    private var cachedPassword: String = DEFAULT_PASSWORD
+
+    suspend fun getPasswordCached(): String {
+        // On first call, read from DataStore
+        if (cachedPassword == DEFAULT_PASSWORD) {
+            context.dataStore.data.collect {
+                val stored = it[KEY_PASSWORD]
+                if (stored != null) cachedPassword = stored
+            }
+        }
+        return cachedPassword
+    }
+
+    // Simpler: expose latest value via a direct read
+    suspend fun getPasswordSnapshot(): String {
+        var result = DEFAULT_PASSWORD
+        context.dataStore.data.collect { prefs ->
+            result = prefs[KEY_PASSWORD] ?: DEFAULT_PASSWORD
+            // break after first emission
+            throw kotlinx.coroutines.CancellationException()
+        }
+        return result
+    }
+}

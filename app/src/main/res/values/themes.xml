@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme with Catppuccin Mocha palette -->
+    <style name="Theme.HermesCompanion" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorBackground">#1E1E2E</item>
+        <item name="android:colorForeground">#CDD6F4</item>
+        <item name="android:navigationBarColor">#1E1E2E</item>
+        <item name="android:statusBarColor">#11111B</item>
+    </style>
+</resources>

@@ -1,0 +1,17 @@
+# Gradle
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.cxx/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Hermes local-only
