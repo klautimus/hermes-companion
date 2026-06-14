@@ -13,7 +13,7 @@ class SessionManager(private val context: Context) {
     companion object {
         const val DEFAULT_URL = "https://android.kevlarscreations.com/android"
         const val DEFAULT_USERNAME = "kevin"
-        const val DEFAULT_PASSWORD = "atlas2026"
+        const val DEFAULT_PASSWORD = ""
         const val DEFAULT_BOARD = "default"
     }
 

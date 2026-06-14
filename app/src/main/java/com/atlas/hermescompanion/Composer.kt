@@ -29,6 +29,7 @@ fun Composer(
     onSendAttachment: (String, ByteArray, String) -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
+    onClear: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var input by remember { mutableStateOf("") }
@@ -139,6 +140,18 @@ fun Composer(
                     singleLine = false,
                     maxLines = 4,
                 )
+                // Clear button — visible only when there's text or a pending image
+                if (input.isNotBlank() || pendingImage != null) {
+                    IconButton(
+                        onClick = {
+                            input = ""
+                            pendingImage = null
+                            onClear()
+                        },
+                    ) {
+                        Icon(Icons.Filled.Close, "Clear")
+                    }
+                }
                 Spacer(modifier = Modifier.width(8.dp))
                 FilledIconButton(
                     onClick = {

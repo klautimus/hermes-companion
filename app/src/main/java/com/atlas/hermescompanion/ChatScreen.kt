@@ -100,6 +100,7 @@ fun ChatScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
             onSendAttachment = { text, bytes, mime -> vm.sendMessageWithAttachment(text, bytes, mime) },
             enabled = !isStreaming,
             modifier = Modifier.fillMaxWidth(),
+            onClear = { vm.clearInput() },
         )
     }
 }

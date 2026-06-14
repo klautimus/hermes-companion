@@ -397,7 +397,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val c = client() ?: return
         viewModelScope.launch {
             try {
-                val body = "{\"text\":\"${text.replace("\"", "\\\"")}\"}"
+                val body = json.encodeToString(
+                    kotlinx.serialization.json.JsonObject.serializer(),
+                    kotlinx.serialization.json.JsonObject(mapOf(
+                        "text" to kotlinx.serialization.json.JsonPrimitive(text)
+                    ))
+                )
                 c.post("/api/kanban/tasks/$taskId/comment?board=${boardSlug.value}", body)
                 loadTask(taskId)  // Refresh the task to see new comment
             } catch (e: Exception) {
@@ -454,6 +459,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _chatError.value = null
             loadSessions()
         }
+    }
+
+    // ─── Composer Input State ────────────────────────────────
+    private val _inputText = MutableStateFlow("")
+    val inputText: StateFlow<String> = _inputText.asStateFlow()
+
+    fun setInputText(text: String) {
+        _inputText.value = text
+    }
+
+    fun clearInput() {
+        _inputText.value = ""
     }
 
     // ─── Helpers ────────────────────────────────────────────

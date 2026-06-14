@@ -102,16 +102,21 @@ class ApiClient(
 
     /** Send chat completion, returns full response text. */
     suspend fun chat(messages: List<Map<String, String>>): String = withContext(Dispatchers.IO) {
-        // Build payload manually (no @Serializable needed for OpenAI shape)
-        val msgJson = messages.joinToString(",") { msg ->
-            val role = msg["role"] ?: "user"
-            val content = (msg["content"] ?: "")
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-            """{"role":"$role","content":"$content"}"""
-        }
-        val payload = """{"model":"hermes-agent","messages":[$msgJson],"stream":false}"""
+        // Build payload with kotlinx.serialization.json (proper escaping)
+        val msgArray = kotlinx.serialization.json.JsonArray(
+            messages.map { msg ->
+                kotlinx.serialization.json.JsonObject(mapOf(
+                    "role" to kotlinx.serialization.json.JsonPrimitive(msg["role"] ?: "user"),
+                    "content" to kotlinx.serialization.json.JsonPrimitive(msg["content"] ?: ""),
+                ))
+            }
+        )
+        val payloadObj = kotlinx.serialization.json.JsonObject(mapOf(
+            "model" to kotlinx.serialization.json.JsonPrimitive("hermes-agent"),
+            "messages" to msgArray,
+            "stream" to kotlinx.serialization.json.JsonPrimitive(false),
+        ))
+        val payload = payloadObj.toString()
 
         suspendCoroutine { cont ->
             client.newCall(request("/v1/chat/completions", "POST", payload)).enqueue(object : Callback {
