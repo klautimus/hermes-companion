@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Dashboard
@@ -45,11 +46,11 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
-                ) { _ ->
+                ) { padding ->
                     when (selectedTab) {
-                        0 -> ChatScreen(modifier = Modifier.fillMaxSize(), viewModel = vm)
-                        1 -> KanbanScreen(modifier = Modifier.fillMaxSize(), viewModel = vm)
-                        2 -> SettingsScreen(modifier = Modifier.fillMaxSize(), viewModel = vm)
+                        0 -> ChatScreen(modifier = Modifier.fillMaxSize().padding(padding), viewModel = vm)
+                        1 -> KanbanScreen(modifier = Modifier.fillMaxSize().padding(padding), viewModel = vm)
+                        2 -> SettingsScreen(modifier = Modifier.fillMaxSize().padding(padding), viewModel = vm)
                     }
                 }
             }
