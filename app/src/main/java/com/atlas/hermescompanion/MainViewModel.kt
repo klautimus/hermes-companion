@@ -281,6 +281,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             session.setUsername(user)
             if (password.isNotBlank()) session.setPassword(password)
             _password.value = password.ifBlank { _password.value }
+            // Retry with new credentials
+            _chatError.value = null
+            loadSessions()
         }
     }
 
