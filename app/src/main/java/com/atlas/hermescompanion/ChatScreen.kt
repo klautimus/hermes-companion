@@ -33,12 +33,11 @@ fun ChatScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
     val isStreaming by vm.isStreaming.collectAsState()
     val error by vm.chatError.collectAsState()
     var showDrawer by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { vm.loadSessions() }
 
     Column(modifier = modifier.fillMaxSize()) {
-        // Session drawer
+        // Session drawer (overlays at top when open)
         if (showDrawer) {
             SessionDrawer(
                 sessions = sessions,
@@ -49,50 +48,46 @@ fun ChatScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
             )
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column {
-                // Top bar with session switcher
-                TopAppBar(
-                    title = { Text("Atlas") },
-                    navigationIcon = {
-                        IconButton(onClick = { showDrawer = true }) {
-                            Icon(Icons.Filled.Menu, "Sessions")
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { vm.newSession() }) {
-                            Icon(Icons.Filled.Add, "New session")
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                    ),
-                )
-
-                // Error banner
-                error?.let { msg ->
-                    Surface(color = MaterialTheme.colorScheme.errorContainer) {
-                        Text(msg, modifier = Modifier.padding(12.dp),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall)
-                    }
+        // Top bar with session switcher
+        TopAppBar(
+            title = { Text("Atlas") },
+            navigationIcon = {
+                IconButton(onClick = { showDrawer = true }) {
+                    Icon(Icons.Filled.Menu, "Sessions")
                 }
+            },
+            actions = {
+                IconButton(onClick = { vm.newSession() }) {
+                    Icon(Icons.Filled.Add, "New session")
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+            ),
+        )
 
-                // Message list
-                MessageList(
-                    messages = messages,
-                    isStreaming = isStreaming,
-                    modifier = Modifier.weight(1f),
-                )
+        // Error banner
+        error?.let { msg ->
+            Surface(color = MaterialTheme.colorScheme.errorContainer) {
+                Text(msg, modifier = Modifier.padding(12.dp),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodySmall)
             }
-
-            // Composer at bottom
-            Composer(
-                onSend = { text -> vm.sendMessage(text) },
-                enabled = !isStreaming,
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
+
+        // Message list (fills remaining space)
+        MessageList(
+            messages = messages,
+            isStreaming = isStreaming,
+            modifier = Modifier.weight(1f),
+        )
+
+        // Composer pinned to bottom
+        Composer(
+            onSend = { text -> vm.sendMessage(text) },
+            enabled = !isStreaming,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
