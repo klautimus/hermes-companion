@@ -194,7 +194,8 @@ async def handle_session_create(request: web.Request) -> web.Response:
                 data["data"] = [data.pop("session")]
             elif "id" in data and "data" not in data:
                 # Handle flat {"id": "...", "title": "..."} shape
-                data["data"] = [data]
+                # Use dict() to copy and avoid circular reference
+                data = {"data": [dict(data)]}
             return web.json_response(data, status=resp.status)
         except Exception:
             pass
@@ -271,16 +272,7 @@ async def handle_kanban_task_show(request: web.Request) -> web.Response:
 async def handle_kanban_task_complete(request: web.Request) -> web.Response:
     task_id = request.match_info["task_id"]
     board = request.query.get("board", "")
-    body = {}
-    try:
-        body = await request.json()
-    except Exception:
-        pass
     args = ["complete", task_id]
-    if body.get("result"):
-        args.extend(["--result", body["result"]])
-    if body.get("summary"):
-        args.extend(["--summary", body["summary"]])
     code, _, err = _kanban(args, board=board)
     if code != 0:
         return web.json_response(

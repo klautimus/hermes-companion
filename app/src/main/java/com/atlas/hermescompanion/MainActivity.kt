@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -20,7 +21,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             HermesCompanionTheme {
                 val vm: MainViewModel = viewModel<MainViewModel>()
-                var selectedTab by remember { mutableIntStateOf(0) }
+                var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),

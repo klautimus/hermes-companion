@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,7 +59,7 @@ fun KanbanScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
     val boardSlug by viewModel.boardSlug.collectAsState()
     val error by viewModel.kanbanError.collectAsState()
     var detailSheet by remember { mutableStateOf(false) }
-    var commentText by remember { mutableStateOf("") }
+    var commentText by rememberSaveable { mutableStateOf("") }
 
     // Drawer state
     var drawerOpen by remember { mutableStateOf(false) }
@@ -202,7 +203,7 @@ fun KanbanScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
                         }
                         OutlinedTextField(
                             value = newBoardSlug,
-                            onValueChange = { newBoardSlug = it.lowercase().replace(Regex("[^a-z0-9-]"), "-") },
+                            onValueChange = { s: String -> newBoardSlug = s.lowercase().replace(Regex("[^a-z0-9-]"), "-") },
                             label = { Text("Slug") },
                             placeholder = { Text("my-project") },
                             singleLine = true,
@@ -211,7 +212,7 @@ fun KanbanScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
                         Spacer(modifier = Modifier.height(8.dp))
                         OutlinedTextField(
                             value = newBoardName,
-                            onValueChange = { newBoardName = it },
+                            onValueChange = { s: String -> newBoardName = s },
                             label = { Text("Display Name (optional)") },
                             placeholder = { Text("My Project") },
                             singleLine = true,
@@ -261,7 +262,7 @@ fun KanbanScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
                         }
                         OutlinedTextField(
                             value = renameBoardName,
-                            onValueChange = { renameBoardName = it },
+                            onValueChange = { s: String -> renameBoardName = s },
                             label = { Text("New Name") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
@@ -379,7 +380,7 @@ fun KanbanScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
 
                     OutlinedTextField(
                         value = commentText,
-                        onValueChange = { commentText = it },
+                        onValueChange = { newText: String -> commentText = newText },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Add comment...") },
                         singleLine = true,

@@ -386,6 +386,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun loadTask(taskId: String) {
         val c = client() ?: return
         val b = boardSlug.value
+        _kanbanError.value = null
         viewModelScope.launch {
             try {
                 val raw = c.get("/api/kanban/tasks/$taskId?board=$b")

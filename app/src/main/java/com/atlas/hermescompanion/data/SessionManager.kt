@@ -11,7 +11,7 @@ private val Context.dataStore by preferencesDataStore(name = "hermes_settings")
 
 class SessionManager(private val context: Context) {
     companion object {
-        const val DEFAULT_URL = "https://android.kevlarscreations.com/android"
+        const val DEFAULT_URL = "https://android.kevlarscreations.com"
         const val DEFAULT_USERNAME = "kevin"
         const val DEFAULT_PASSWORD="atlas2026" // Must match companion daemon auth.json
         const val DEFAULT_BOARD = "default"
@@ -41,15 +41,6 @@ class SessionManager(private val context: Context) {
 
     suspend fun setBoard(board: String) {
         context.dataStore.edit { it[KEY_BOARD] = board }
-    }
-
-    private var cachedPassword: String = DEFAULT_PASSWORD
-
-    suspend fun getPasswordCached(): String {
-        if (cachedPassword == DEFAULT_PASSWORD) {
-            cachedPassword = context.dataStore.data.first()[KEY_PASSWORD] ?: DEFAULT_PASSWORD
-        }
-        return cachedPassword
     }
 
     // Simpler: expose latest value via a direct read
