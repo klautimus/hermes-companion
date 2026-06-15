@@ -268,7 +268,11 @@ async def handle_kanban_task_show(request: web.Request) -> web.Response:
             status=404,
         )
     try:
-        return web.json_response(json.loads(out))
+        data = json.loads(out)
+        # Unwrap: hermes kanban show returns {"task": {...}} but TaskShowResponse expects flat
+        if isinstance(data, dict) and "task" in data:
+            data = data["task"]
+        return web.json_response(data)
     except json.JSONDecodeError:
         return web.json_response(
             {"error": {"code": "INTERNAL_ERROR", "message": "parse error"}}, status=500,
