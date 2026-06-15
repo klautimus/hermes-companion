@@ -6,9 +6,14 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okio.Buffer
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class ApiClientTest {
 
     // ─── Auth Header Generation ──────────────────────────────

@@ -7,6 +7,9 @@ import com.atlas.hermescompanion.data.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
@@ -242,9 +245,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     .filter { !it.isStreaming && it.sessionId == sid }
                     .map { mapOf("role" to it.role, "content" to it.content) }
 
-                val reply = c.chat(history)
-                _isStreaming.value = false
-                finalizeAssistant(msgId, reply)
+                try {
+                    val reply = c.chat(history)
+                    _isStreaming.value = false
+                    finalizeAssistant(msgId, reply)
+                } catch (e: Exception) {
+                    _chatError.value = e.message
+                    _isStreaming.value = false
+                    finalizeAssistant(msgId, "(Error: ${e.message})")
+                }
             } catch (e: Exception) {
                 _chatError.value = e.message
                 _isStreaming.value = false
@@ -311,7 +320,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _kanbanError.value = null
         viewModelScope.launch {
             try {
-                val body = """{"slug":"$slug","name":"$name"}"""
+                val body = buildJsonObject {
+                    put("slug", JsonPrimitive(slug))
+                    put("name", JsonPrimitive(name))
+                }.toString()
                 c.post("/api/kanban/boards", body)
                 loadBoards()
             } catch (e: Exception) {
@@ -324,7 +336,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val c = client() ?: return
         viewModelScope.launch {
             try {
-                val body = """{"name":"${newName.replace("\"", "\\\"")}"}"""
+                val body = buildJsonObject {
+                    put("name", JsonPrimitive(newName))
+                }.toString()
                 c.post("/api/kanban/boards/$slug/rename", body)
                 loadBoards()
             } catch (e: Exception) {
@@ -397,12 +411,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val c = client() ?: return
         viewModelScope.launch {
             try {
-                val body = json.encodeToString(
-                    kotlinx.serialization.json.JsonObject.serializer(),
-                    kotlinx.serialization.json.JsonObject(mapOf(
-                        "text" to kotlinx.serialization.json.JsonPrimitive(text)
-                    ))
-                )
+                val body = buildJsonObject {
+                    put("text", JsonPrimitive(text))
+                }.toString()
                 c.post("/api/kanban/tasks/$taskId/comment?board=${boardSlug.value}", body)
                 loadTask(taskId)  // Refresh the task to see new comment
             } catch (e: Exception) {
@@ -414,7 +425,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val c = client() ?: return
         viewModelScope.launch {
             try {
-                val body = "{\"assignee\":\"$assignee\"}"
+                val body = buildJsonObject {
+                    put("assignee", JsonPrimitive(assignee))
+                }.toString()
                 c.post("/api/kanban/tasks/$taskId/assign?board=${boardSlug.value}", body)
                 loadTasks()
             } catch (e: Exception) {

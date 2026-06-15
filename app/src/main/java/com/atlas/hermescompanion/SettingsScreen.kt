@@ -89,8 +89,15 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
                 scope.launch {
                     testResult = "Testing..."
                     testOk = false
+                    val effectivePass = passInput.ifBlank { SessionManager.DEFAULT_PASSWORD }
+                    // F-02 FIX: Warn when using default/empty password
+                    if (passInput.isBlank()) {
+                        testResult = "Please set a password first (current password is empty)"
+                        testOk = false
+                        return@launch
+                    }
                     try {
-                        val c = ApiClient(urlInput, userInput, passInput.ifBlank { SessionManager.DEFAULT_PASSWORD })
+                        val c = ApiClient(urlInput, userInput, effectivePass)
                         val raw = c.get("/health")
                         val health = Json { ignoreUnknownKeys = true }.decodeFromString<CompanionHealth>(raw)
                         testResult = "Connected ✓ (hermes_api=${if (health.hermesReachable) "up" else "down"})"

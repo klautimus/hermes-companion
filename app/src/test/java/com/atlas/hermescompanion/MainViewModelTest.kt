@@ -248,8 +248,8 @@ class MainViewModelTest {
 
     @Test
     fun defaultPassword() {
-        // Was "atlas2026" — changed to empty string so users must set their own password (S-AND-03)
-        assertEquals("", SessionManager.DEFAULT_PASSWORD)
+        // Changed to a known default password that matches auth.json scrypt hash (AUDIT_AUTH F-01 FIX)
+        assertEquals("atlas2026", SessionManager.DEFAULT_PASSWORD)
     }
 
     @Test

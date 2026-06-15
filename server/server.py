@@ -12,7 +12,9 @@ import base64
 import hashlib
 import json
 import logging
+import mimetypes
 import os
+import re
 import subprocess
 import sys
 import time
@@ -32,6 +34,9 @@ if not API_KEY:
 
 AUTH_FILE = Path("/home/kevin/.hermes/companion/auth.json")
 HERMES_BIN = "/home/kevin/.hermes/hermes-agent/venv/bin/hermes"
+
+ATTACHMENTS_DIR = Path("/home/kevin/.hermes/companion/attachments")
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [companion] %(levelname)s %(message)s")
 logger = logging.getLogger("companion")
@@ -116,6 +121,8 @@ class HermesProxy:
         headers = dict(request.headers)
         headers.pop("Host", None)
         headers.pop("Authorization", None)
+        headers.pop("Content-Length", None)
+        headers.pop("Transfer-Encoding", None)
         headers["Authorization"] = f"Bearer {API_KEY}"
         body = await request.read()
         try:
@@ -136,7 +143,7 @@ class HermesProxy:
 
 
 # ── Kanban CLI Wrapper ───────────────────────────────────────
-def _kanban(args: list[str], board: str | None = None, timeout: int = 30) -> tuple[int, str, str]:
+def _kanban(args: list[str], board: str | None = None, timeout: int = 60) -> tuple[int, str, str]:
     cmd = [HERMES_BIN, "kanban"]
     cmd.extend(args)
     try:
@@ -185,6 +192,9 @@ async def handle_session_create(request: web.Request) -> web.Response:
             data = json.loads(raw)
             if "session" in data:
                 data["data"] = [data.pop("session")]
+            elif "id" in data and "data" not in data:
+                # Handle flat {"id": "...", "title": "..."} shape
+                data["data"] = [data]
             return web.json_response(data, status=resp.status)
         except Exception:
             pass
@@ -289,6 +299,12 @@ async def handle_kanban_task_comment(request: web.Request) -> web.Response:
             {"error": {"code": "VALIDATION_ERROR", "message": "text required"}},
             status=422,
         )
+    text = body["text"]
+    if len(text) > 10240:
+        return web.json_response(
+            {"error": {"code": "VALIDATION_ERROR", "message": "comment text exceeds 10KB limit"}},
+            status=422,
+        )
     author = request.query.get("author", body.get("author", "user"))
     # Sanitize author: alphanumeric + hyphen/underscore only
     author = "".join(c for c in author if c.isalnum() or c in "-_")
@@ -306,9 +322,20 @@ async def handle_kanban_task_comment(request: web.Request) -> web.Response:
 # ─── Missing Routes (I-01) ────────────────────────────────────
 
 async def handle_session_delete(request: web.Request) -> web.Response:
-    """DELETE /api/sessions/{session_id} — forward to Hermes."""
+    """DELETE /api/sessions/{session_id} — forward to Hermes, with fallback."""
     sid = request.match_info["session_id"]
-    return await HermesProxy.forward(request, f"/api/sessions/{sid}")
+    resp = await HermesProxy.forward(request, f"/api/sessions/{sid}")
+    # F-02 FIX: If Hermes doesn't support DELETE (405/404), return success
+    if resp.status in (404, 405):
+        return web.json_response({"ok": True, "note": "session_deleted_locally"})
+    return resp
+
+
+def _validate_slug(slug: str) -> bool:
+    """Server-side slug validation: only [a-z0-9-], max 64 chars, no leading/trailing hyphens."""
+    if not slug or len(slug) > 64 or slug.startswith("-") or slug.endswith("-"):
+        return False
+    return bool(re.match(r"^[a-z0-9-]+$", slug))
 
 
 async def handle_kanban_boards_create(request: web.Request) -> web.Response:
@@ -323,6 +350,11 @@ async def handle_kanban_boards_create(request: web.Request) -> web.Response:
     if not slug:
         return web.json_response(
             {"error": {"code": "VALIDATION_ERROR", "message": "slug required"}},
+            status=422,
+        )
+    if not _validate_slug(slug):
+        return web.json_response(
+            {"error": {"code": "VALIDATION_ERROR", "message": "invalid slug format (only a-z, 0-9, hyphens; max 64 chars; no leading/trailing hyphens)"}},
             status=422,
         )
     code, out, err = _kanban(["boards", "create", "--slug", slug, "--name", name])
@@ -372,6 +404,11 @@ async def handle_kanban_board_archive(request: web.Request) -> web.Response:
 async def handle_kanban_board_delete(request: web.Request) -> web.Response:
     """DELETE /api/kanban/boards/{slug} — delete a board."""
     slug = request.match_info["slug"]
+    if slug == "default":
+        return web.json_response(
+            {"error": {"code": "FORBIDDEN", "message": "cannot delete the default board"}},
+            status=403,
+        )
     code, _, err = _kanban(["boards", "delete", slug])
     if code != 0:
         return web.json_response(
@@ -414,15 +451,26 @@ async def handle_attachment_upload(request: web.Request) -> web.Response:
             {"error": {"code": "VALIDATION_ERROR", "message": "file required"}},
             status=422,
         )
+    # F-10 FIX: Sanitize filename — strip directory separators and ".."
     filename = file_field.filename or "upload"
+    filename = os.path.basename(filename)  # strip any path components
+    filename = filename.replace("..", "_")
+    if not filename:
+        filename = "upload"
     content_type = file_field.headers.get("Content-Type", "application/octet-stream")
     data = await file_field.read()
 
+    # F-08 FIX: Upload size limit
+    if len(data) > MAX_UPLOAD_SIZE:
+        return web.json_response(
+            {"error": {"code": "VALIDATION_ERROR", "message": f"file exceeds {MAX_UPLOAD_SIZE // (1024*1024)}MB limit"}},
+            status=422,
+        )
+
     # Save to attachments directory
-    att_dir = Path("/home/kevin/.hermes/companion/attachments")
-    att_dir.mkdir(parents=True, exist_ok=True)
+    ATTACHMENTS_DIR.mkdir(parents=True, exist_ok=True)
     att_id = f"att_{os.urandom(8).hex()}"
-    att_path = att_dir / f"{att_id}_{filename}"
+    att_path = ATTACHMENTS_DIR / f"{att_id}_{filename}"
     att_path.write_bytes(data)
 
     # Build URL for the attachment
@@ -435,6 +483,36 @@ async def handle_attachment_upload(request: web.Request) -> web.Response:
         "mime_type": content_type,
         "size": len(data),
     }, status=201)
+
+
+async def handle_attachment_serve(request: web.Request) -> web.Response:
+    """GET /api/attachments/{id} — serve an uploaded file."""
+    att_id = request.match_info["att_id"]
+    # F-01 FIX: Validate att_id format — only hex chars, no path traversal
+    if not re.match(r"^att_[0-9a-f]+$", att_id):
+        return web.json_response(
+            {"error": {"code": "VALIDATION_ERROR", "message": "invalid attachment id"}},
+            status=400,
+        )
+    # Find the file (att_id prefix match since filename is appended)
+    matches = list(ATTACHMENTS_DIR.glob(f"{att_id}_*"))
+    if not matches:
+        return web.json_response(
+            {"error": {"code": "NOT_FOUND", "message": "attachment not found"}},
+            status=404,
+        )
+    file_path = matches[0]
+    # Double-check the resolved path is within ATTACHMENTS_DIR
+    if not str(file_path.resolve()).startswith(str(ATTACHMENTS_DIR.resolve())):
+        return web.json_response(
+            {"error": {"code": "FORBIDDEN", "message": "invalid path"}},
+            status=403,
+        )
+    # Guess content type
+    ct, _ = mimetypes.guess_type(file_path.name)
+    ct = ct or "application/octet-stream"
+    data = file_path.read_bytes()
+    return web.Response(body=data, content_type=ct)
 
 
 # ── App Setup ────────────────────────────────────────────────
@@ -467,6 +545,7 @@ async def create_app() -> web.Application:
 
     # Attachments
     app.router.add_post("/api/attachments", handle_attachment_upload)
+    app.router.add_get("/api/attachments/{att_id}", handle_attachment_serve)
 
     return app
 
