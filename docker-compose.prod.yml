@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  companion:
+    build: ./server
+    container_name: hermes-companion
+    restart: unless-stopped
+    expose:
+      - "8777"
+    environment:
+      - API_SERVER_KEY=${API_SERVER_KEY}
+      - COMPANION_HOST=0.0.0.0
+      - COMPANION_PORT=8777
+      - HERMES_API_URL=http://host.docker.internal:8642
+    volumes:
+      - companion-data:/data
+      - ./auth.json:/app/auth.json:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8777/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - companion-net
+
+  nginx:
+    image: nginx:alpine
+    container_name: hermes-companion-nginx
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      companion:
+        condition: service_healthy
+    networks:
+      - companion-net
+
+volumes:
+  companion-data:
+    driver: local
+
+networks:
+  companion-net:
+    driver: bridge

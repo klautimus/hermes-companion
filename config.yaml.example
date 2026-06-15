@@ -1,0 +1,18 @@
+# Example configuration for Hermes Companion server.
+# Copy this file and edit values for your deployment.
+
+server:
+  host: "127.0.0.1"
+  port: 8777
+
+hermes:
+  api_url: "http://127.0.0.1:8642"
+  api_key: "${API_SERVER_KEY}"  # Reads from environment variable
+  cli_path: "auto"  # auto-detect hermes binary, or set explicit path
+
+auth:
+  file: "~/.hermes/companion/auth.json"
+
+storage:
+  attachments_dir: "~/.hermes/companion/attachments"
+  max_upload_size: 10485760  # 10 MB in bytes

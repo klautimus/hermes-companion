@@ -1,0 +1,28 @@
+[Unit]
+Description=Hermes Companion Server
+After=network.target
+
+[Service]
+Type=simple
+User=hermes
+Group=hermes
+WorkingDirectory=/opt/hermes-companion/server
+ExecStart=/opt/hermes-companion/server/venv/bin/python server.py
+Restart=on-failure
+RestartSec=5
+
+# Environment
+Environment=API_SERVER_KEY=
+Environment=COMPANION_HOST=127.0.0.1
+Environment=COMPANION_PORT=8777
+Environment=HERMES_API_URL=http://127.0.0.1:8642
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/hermes-companion/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

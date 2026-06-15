@@ -12,6 +12,6 @@
 -dontnote kotlinx.serialization.AnnotationsKt
 -keepclassmembers class kotlinx.serialization.json.** { *** Companion; }
 -keepclasseswithmembers class kotlinx.serialization.json.** { kotlinx.serialization.KSerializer serializer(...); }
--keep,includedescriptorclasses class com.atlas.hermescompanion.**$$serializer { *; }
--keepclassmembers class com.atlas.hermescompanion.** { *** Companion; }
--keepclasseswithmembers class com.atlas.hermescompanion.** { kotlinx.serialization.KSerializer serializer(...); }
+-keep,includedescriptorclasses class org.hermes.community.companion.**$$serializer { *; }
+-keepclassmembers class org.hermes.community.companion.** { *** Companion; }
+-keepclasseswithmembers class org.hermes.community.companion.** { kotlinx.serialization.KSerializer serializer(...); }
