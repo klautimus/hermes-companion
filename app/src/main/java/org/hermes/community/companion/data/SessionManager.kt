@@ -63,4 +63,15 @@ class SessionManager(private val context: Context) {
     suspend fun getPasswordSnapshot(): String {
         return context.dataStore.data.first()[KEY_PASSWORD] ?: ""
     }
+
+    // Test helper: clear all DataStore values
+    suspend fun clearAll() {
+        context.dataStore.edit {
+            it[KEY_URL] = ""
+            it[KEY_USERNAME] = ""
+            it[KEY_PASSWORD] = ""
+            it[KEY_BOARD] = "default"
+            it[KEY_SETUP_COMPLETE] = false
+        }
+    }
 }

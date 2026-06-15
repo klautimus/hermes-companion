@@ -73,7 +73,7 @@ fun SetupWizardScreen(
 
     if (showQrScanner) {
         QrScannerScreen(
-            onQrScanned = { uriString ->
+            onQrCodeScanned = { uriString ->
                 showQrScanner = false
                 parseQrUri(uriString)?.let { parsed ->
                     config = WizardConfig(
@@ -140,7 +140,6 @@ fun SetupWizardScreen(
                 config = config,
                 onConfigChange = { config = it },
                 boards = boards,
-                onBoardsLoaded = { boards = it },
                 viewModel = viewModel,
                 createBoardName = createBoardName,
                 onCreateBoardNameChange = { createBoardName = it },
@@ -361,7 +360,7 @@ private fun CredentialsScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             visualTransformation = if (passVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = Password),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             trailingIcon = {
                 IconButton(onClick = { passVisible = !passVisible }) {
                     Icon(
@@ -379,7 +378,6 @@ private fun BoardSelectionScreen(
     config: WizardConfig,
     onConfigChange: (WizardConfig) -> Unit,
     boards: List<String>,
-    onBoardsLoaded: (List<String>) -> Unit,
     viewModel: MainViewModel,
     createBoardName: String,
     onCreateBoardNameChange: (String) -> Unit,

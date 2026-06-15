@@ -105,7 +105,7 @@ hermes-companion/
 │   ├── build.gradle         # App-level build config
 │   └── src/main/
 │       ├── AndroidManifest.xml
-│       └── java/com/atlas/hermescompanion/
+│       └── java/org/hermes/community/companion/
 │           ├── MainActivity.kt
 │           ├── MainViewModel.kt
 │           ├── ChatScreen.kt

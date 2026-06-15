@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
+fun SettingsScreen(modifier: Modifier = Modifier, viewModel: MainViewModel, onResetSetup: () -> Unit = {}) {
     val baseUrl by viewModel.baseUrl.collectAsState()
     val username by viewModel.username.collectAsState()
     val boardSlug by viewModel.boardSlug.collectAsState()
@@ -171,6 +171,23 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
 
         Text(
             "Change the active kanban board. Use the Kanban tab to browse available boards.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Divider()
+
+        Text("Setup", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.tertiary)
+
+        OutlinedButton(
+            onClick = onResetSetup,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Run Setup Wizard")
+        }
+
+        Text(
+            "Re-run the initial setup wizard to change server, credentials, or board.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

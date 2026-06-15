@@ -8,7 +8,7 @@ How to test the Hermes Companion Android app.
 app/src/
 ├── main/                          # Production code
 └── test/
-    ├── java/com/atlas/hermescompanion/
+    ├── java/org/hermes/community/companion/
     │   ├── MainViewModelTest.kt   # ViewModel unit tests
     │   ├── data/
     │   │   ├── ApiClientTest.kt   # API client tests
@@ -21,7 +21,7 @@ app/src/
 
 ### From Android Studio
 
-1. Right-click the `test` directory → **Run 'Tests in 'com.atlas.hermescompanion'**
+1. Right-click the `test` directory → **Run 'Tests in 'org.hermes.community.companion'**
 2. Or right-click individual test files.
 
 ### From Command Line

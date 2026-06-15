@@ -62,7 +62,7 @@ Fix two fatal bugs preventing the chat interface from functioning, then verify e
 **Dependencies:** None
 
 **Files touched:**
-- `app/src/main/java/com/atlas/hermescompanion/MainViewModel.kt`
+- `app/src/main/java/org/hermes/community/companion/MainViewModel.kt`
 
 **Estimated scope:** Small (1 file)
 
@@ -101,7 +101,7 @@ Keep the Composer import and function signature unchanged — only restructure t
 - [ ] Session drawer appears above the chat (drawer → Column layout preserved)
 - [ ] TopAppBar visible and functional
 - [ ] Error banner visible when present
-- [ ] No visual regressions in empty state ("Start a conversation with Atlas.")
+- [ ] No visual regressions in empty state ("Start a conversation.")
 - [ ] Works in portrait and landscape
 
 **Verification:**
@@ -113,7 +113,7 @@ Keep the Composer import and function signature unchanged — only restructure t
 **Dependencies:** Task 1
 
 **Files touched:**
-- `app/src/main/java/com/atlas/hermescompanion/ChatScreen.kt`
+- `app/src/main/java/org/hermes/community/companion/ChatScreen.kt`
 
 **Estimated scope:** Small (1 file)
 

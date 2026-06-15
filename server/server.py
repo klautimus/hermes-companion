@@ -24,19 +24,26 @@ from datetime import datetime, timezone
 from aiohttp import web, ClientSession, ClientTimeout
 
 # ── Config ──────────────────────────────────────────────────
-HOST = os.getenv("COMPANION_HOST", "127.0.0.1")
-PORT = int(os.getenv("COMPANION_PORT", "8777"))
-HERMES_API = os.getenv("HERMES_API_URL", "http://127.0.0.1:8642")
-API_KEY = os.getenv("API_SERVER_KEY", "")
-if not API_KEY:
-    print("[FATAL] API_SERVER_KEY not set — must be provided via environment", file=sys.stderr)
-    sys.exit(1)
+from .config_schema import load_config
+from .first_run import ensure_configured_or_exit
 
-AUTH_FILE = Path("/home/kevin/.hermes/companion/auth.json")
-HERMES_BIN = "/home/kevin/.hermes/hermes-agent/venv/bin/hermes"
+# Load config (handles first-run check, env overrides, YAML file)
+ensure_configured_or_exit()
+config = load_config()
 
-ATTACHMENTS_DIR = Path("/home/kevin/.hermes/companion/attachments")
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+HOST = config.server.host
+PORT = config.server.port
+HERMES_API = config.hermes.api_url
+API_KEY = config.hermes.api_key
+
+paths = config.get_expanded_paths()
+AUTH_FILE = paths["auth_file"]
+HERMES_BIN = config.hermes.cli_path
+if HERMES_BIN == "auto":
+    HERMES_BIN = "/home/kevin/.hermes/hermes-agent/venv/bin/hermes"
+
+ATTACHMENTS_DIR = paths["attachments_dir"]
+MAX_UPLOAD_SIZE = config.storage.max_upload_size
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [companion] %(levelname)s %(message)s")
 logger = logging.getLogger("companion")

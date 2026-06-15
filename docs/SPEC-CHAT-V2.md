@@ -38,7 +38,7 @@ Build a fully functional ChatGPT-style chat interface in the Hermes Companion An
 Build debug:    cd ~/.hermes/projects/HermesCompanion && ./gradlew assembleDebug
 Build release:  cd ~/.hermes/projects/HermesCompanion && ./gradlew assembleRelease
 Install:        cmd.exe /c 'adb.exe install -r app/build/outputs/apk/debug/app-debug.apk'
-Launch:         cmd.exe /c 'adb.exe shell am start -n com.atlas.hermescompanion/.MainActivity'
+Launch:         cmd.exe /c 'adb.exe shell am start -n org.hermes.community.companion/.MainActivity'
 Logs:           cmd.exe /c 'adb.exe logcat -d -t 50 HermesCompanion:D AndroidRuntime:E *:S'
 Test:           ./gradlew test
 ```
@@ -46,7 +46,7 @@ Test:           ./gradlew test
 ## Project Structure
 
 ```
-app/src/main/java/com/atlas/hermescompanion/
+app/src/main/java/org/hermes/community/companion/
   ChatScreen.kt       — Chat UI composable (LAYOUT BUG HERE)
   MessageList.kt       — LazyColumn + ChatBubble (renders fine)
   Composer.kt          — Input bar (renders fine)

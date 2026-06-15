@@ -18,8 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.hermes.community.companion.data.DeepLinkConfig
 import org.hermes.community.companion.data.SessionManager
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
     private var deepLinkConfig: DeepLinkConfig? = null
@@ -37,20 +35,31 @@ class MainActivity : ComponentActivity() {
                 // Check if setup is complete
                 val isSetupComplete by sessionManager.setupComplete.collectAsState(initial = false)
 
+                // Allow re-running wizard from settings
+                var showWizard by remember { mutableStateOf(!isSetupComplete) }
+
+                // Update showWizard when setupComplete changes
+                LaunchedEffect(isSetupComplete) {
+                    if (!isSetupComplete) showWizard = true
+                }
+
                 // Feed deep link into ViewModel
                 LaunchedEffect(deepLinkConfig) {
                     deepLinkConfig?.let { vm.setDeepLinkConfig(it) }
                 }
 
-                if (!isSetupComplete) {
+                if (showWizard) {
                     SetupWizardScreen(
                         viewModel = vm,
                         onSetupComplete = {
-                            // Trigger recomposition by reading setupComplete again
+                            showWizard = false
                         }
                     )
                 } else {
-                    MainAppContent(viewModel = vm)
+                    MainAppContent(
+                        viewModel = vm,
+                        onShowWizard = { showWizard = true }
+                    )
                 }
             }
         }
@@ -60,7 +69,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         // Handle deep link when app is already running
-        parseDeepLinkIntent(intent)?.let { config }
+        parseDeepLinkIntent(intent)?.let { deepLinkConfig = it }
     }
 
     private fun parseDeepLinkIntent(intent: Intent): DeepLinkConfig? {
@@ -78,7 +87,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun MainAppContent(viewModel: MainViewModel) {
+private fun MainAppContent(viewModel: MainViewModel, onShowWizard: () -> Unit = {}) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
@@ -109,7 +118,7 @@ private fun MainAppContent(viewModel: MainViewModel) {
         when (selectedTab) {
             0 -> ChatScreen(modifier = Modifier.fillMaxSize().padding(padding), viewModel = viewModel)
             1 -> KanbanScreen(modifier = Modifier.fillMaxSize().padding(padding), viewModel = viewModel)
-            2 -> SettingsScreen(modifier = Modifier.fillMaxSize().padding(padding), viewModel = viewModel)
+            2 -> SettingsScreen(modifier = Modifier.fillMaxSize().padding(padding), viewModel = viewModel, onResetSetup = onShowWizard)
         }
     }
 }

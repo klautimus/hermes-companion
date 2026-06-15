@@ -42,7 +42,7 @@ class ApiClientTest {
 
     @Test
     fun authHeader_noExtraWhitespace() {
-        val encoded = Base64.getEncoder().encodeToString("kevin:atlas2026".toByteArray())
+        val encoded = Base64.getEncoder().encodeToString("user:password".toByteArray())
         assertFalse(encoded.contains("\n"))
         assertFalse(encoded.contains(" "))
     }
@@ -50,8 +50,8 @@ class ApiClientTest {
     @Test
     fun authHeader_matchesOkHttpCredential() {
         // OkHttp's Credentials.basic() uses the same Base64 encoding
-        val okhttpHeader = okhttp3.Credentials.basic("kevin", "atlas2026")
-        val manual = "Basic ${Base64.getEncoder().encodeToString("kevin:atlas2026".toByteArray())}"
+        val okhttpHeader = okhttp3.Credentials.basic("user", "password")
+        val manual = "Basic ${Base64.getEncoder().encodeToString("user:password".toByteArray())}"
         assertEquals(okhttpHeader, manual)
     }
 
@@ -128,7 +128,7 @@ class ApiClientTest {
 
     @Test
     fun requestBuilder_getRequest() {
-        val authHeader = okhttp3.Credentials.basic("kevin", "atlas2026")
+        val authHeader = okhttp3.Credentials.basic("user", "password")
         val request = Request.Builder()
             .url("http://localhost:8777/api/sessions")
             .method("GET", null)

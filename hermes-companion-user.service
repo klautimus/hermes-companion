@@ -1,0 +1,25 @@
+[Unit]
+Description=Hermes Companion Server (User Service)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/hermes-companion serve
+Restart=on-failure
+RestartSec=5
+
+# Environment - user should set these via systemctl --user edit hermes-companion
+Environment=API_SERVER_KEY=
+Environment=COMPANION_HOST=127.0.0.1
+Environment=COMPANION_PORT=8777
+Environment=HERMES_API_URL=http://127.0.0.1:8642
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/hermes-companion
+
+[Install]
+WantedBy=default.target

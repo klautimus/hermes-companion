@@ -169,7 +169,7 @@ class TestValidateSlug:
 # ─── Kanban CLI Wrapper Tests ────────────────────────────────
 
 class TestKanbanCLI:
-    @patch("server.subprocess.run")
+    @patch("server.server.subprocess.run")
     def test_successful_run(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout='{"ok": true}', stderr="")
         code, out, err = _kanban(["boards", "list", "--json"])
@@ -177,7 +177,7 @@ class TestKanbanCLI:
         assert out == '{"ok": true}'
         assert err == ""
 
-    @patch("server.subprocess.run")
+    @patch("server.server.subprocess.run")
     def test_timeout(self, mock_run):
         import subprocess
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="hermes", timeout=60)
@@ -185,21 +185,21 @@ class TestKanbanCLI:
         assert code == -1
         assert "timed out" in err
 
-    @patch("server.subprocess.run")
+    @patch("server.server.subprocess.run")
     def test_binary_not_found(self, mock_run):
         mock_run.side_effect = FileNotFoundError()
         code, out, err = _kanban(["list"])
         assert code == -1
         assert "not found" in err
 
-    @patch("server.subprocess.run")
+    @patch("server.server.subprocess.run")
     def test_nonzero_exit(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="board not found")
         code, out, err = _kanban(["show", "nonexistent"])
         assert code == 1
         assert err == "board not found"
 
-    @patch("server.subprocess.run")
+    @patch("server.server.subprocess.run")
     def test_default_timeout_is_60(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         _kanban(["list"])
@@ -250,7 +250,7 @@ class TestHandleSessionDelete:
 
 
 class TestHandleKanbanTaskComplete:
-    @patch("server._kanban")
+    @patch("server.server._kanban")
     def test_complete_success(self, mock_kanban):
         mock_kanban.return_value = (0, "", "")
         req = make_request("POST", "/api/kanban/tasks/task-1/complete")
@@ -263,7 +263,7 @@ class TestHandleKanbanTaskComplete:
         assert body["task_id"] == "task-1"
         assert body["status"] == "done"
 
-    @patch("server._kanban")
+    @patch("server.server._kanban")
     def test_complete_failure(self, mock_kanban):
         mock_kanban.return_value = (1, "", "task not found")
         req = make_request("POST", "/api/kanban/tasks/task-x/complete")
@@ -272,7 +272,7 @@ class TestHandleKanbanTaskComplete:
         result = asyncio.get_event_loop().run_until_complete(handle_kanban_task_complete(req))
         assert result.status == 500
 
-    @patch("server._kanban")
+    @patch("server.server._kanban")
     def test_complete_no_body(self, mock_kanban):
         """Complete handler should work even without a request body."""
         mock_kanban.return_value = (0, "", "")
@@ -286,7 +286,7 @@ class TestHandleKanbanTaskComplete:
 
 
 class TestHandleKanbanTaskComment:
-    @patch("server._kanban")
+    @patch("server.server._kanban")
     def test_comment_success(self, mock_kanban):
         mock_kanban.return_value = (0, "", "")
         req = make_request("POST", "/api/kanban/tasks/task-1/comment", data={"text": "hello"})
@@ -313,7 +313,7 @@ class TestHandleKanbanTaskComment:
 
     def test_comment_author_sanitization(self):
         """Author should be sanitized to alphanumeric + hyphen/underscore."""
-        with patch("server._kanban") as mock_kanban:
+        with patch("server.server._kanban") as mock_kanban:
             mock_kanban.return_value = (0, "", "")
             req = make_request("POST", "/api/kanban/tasks/task-1/comment?author=admin", data={"text": "hi"})
             req.match_info = {"task_id": "task-1"}
@@ -326,7 +326,7 @@ class TestHandleKanbanTaskComment:
 
 
 class TestHandleKanbanBoardsCreate:
-    @patch("server._kanban")
+    @patch("server.server._kanban")
     def test_create_success(self, mock_kanban):
         mock_kanban.return_value = (0, "", "")
         req = make_request("POST", "/api/kanban/boards", data={"slug": "my-board", "name": "My Board"})
@@ -353,7 +353,7 @@ class TestHandleKanbanBoardsCreate:
 
 
 class TestHandleKanbanBoardDelete:
-    @patch("server._kanban")
+    @patch("server.server._kanban")
     def test_delete_non_default(self, mock_kanban):
         mock_kanban.return_value = (0, "", "")
         req = make_request("DELETE", "/api/kanban/boards/my-board")
@@ -382,7 +382,7 @@ class TestHandleAttachmentUpload:
         reader.next = AsyncMock(side_effect=[file_field, StopAsyncIteration])
         req.multipart = AsyncMock(return_value=reader)
 
-        with patch("server.ATTACHMENTS_DIR", Path(tempfile.mkdtemp())):
+        with patch("server.server.ATTACHMENTS_DIR", Path(tempfile.mkdtemp())):
             result = asyncio.get_event_loop().run_until_complete(handle_attachment_upload(req))
         assert result.status == 201
         body = json.loads(result.text)
@@ -418,7 +418,7 @@ class TestHandleAttachmentServe:
         req = MagicMock()
         req.match_info = {"att_id": att_id}
 
-        with patch("server.ATTACHMENTS_DIR", Path(tmp_dir)):
+        with patch("server.server.ATTACHMENTS_DIR", Path(tmp_dir)):
             result = asyncio.get_event_loop().run_until_complete(handle_attachment_serve(req))
         assert result.status == 200
         assert result.body == b"fake image data"
@@ -436,7 +436,7 @@ class TestHandleAttachmentServe:
         req = MagicMock()
         req.match_info = {"att_id": "att_deadbeef12345678"}
 
-        with patch("server.ATTACHMENTS_DIR", Path(tmp_dir)):
+        with patch("server.server.ATTACHMENTS_DIR", Path(tmp_dir)):
             result = asyncio.get_event_loop().run_until_complete(handle_attachment_serve(req))
         assert result.status == 404
 

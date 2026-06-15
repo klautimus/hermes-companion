@@ -24,7 +24,7 @@ The Hermes Companion project was originally built for a single-user setup with h
 | Default server URL | `https://android.kevlarscreations.com` | Empty (user must configure) |
 | Default username | `kevin` | Empty (user must configure) |
 | Default password | `atlas2026` | Empty (user must configure) |
-| Package name | `com.atlas.hermescompanion` | `com.atlas.hermescompanion` (unchanged) |
+|| Package name | `com.atlas.hermescompanion` | `org.hermes.community.companion` |
 
 ## Migration Steps
 

@@ -18,20 +18,20 @@ app/
 └── src/
     ├── main/
     │   ├── AndroidManifest.xml
-    │   ├── java/com/atlas/hermescompanion/
-    │   │   ├── MainActivity.kt          # Entry point, navigation
-    │   │   ├── MainViewModel.kt         # Shared state
-    │   │   ├── ChatScreen.kt            # Chat UI
-    │   │   ├── KanbanScreen.kt          # Kanban board UI
-    │   │   ├── SettingsScreen.kt        # Connection settings
-    │   │   ├── Composer.kt              # Message input
-    │   │   ├── MessageList.kt           # Message display
-    │   │   ├── MarkdownText.kt          # Markdown rendering
-    │   │   ├── Theme.kt                 # Material3 theme
-    │   │   └── data/
-    │   │       ├── ApiClient.kt         # HTTP client
-    │   │       ├── Models.kt            # Data classes
-    │   │       └── SessionManager.kt    # Credential storage
+    │   │   ├── java/org/hermes/community/companion/
+    │   │   │   ├── MainActivity.kt          # Entry point, navigation
+    │   │   │   ├── MainViewModel.kt         # Shared state
+    │   │   │   ├── ChatScreen.kt            # Chat UI
+    │   │   │   ├── KanbanScreen.kt          # Kanban board UI
+    │   │   │   ├── SettingsScreen.kt        # Connection settings
+    │   │   │   ├── Composer.kt              # Message input
+    │   │   │   ├── MessageList.kt           # Message display
+    │   │   │   ├── MarkdownText.kt          # Markdown rendering
+    │   │   │   ├── Theme.kt                 # Material3 theme
+    │   │   │   └── data/
+    │   │   │       ├── ApiClient.kt         # HTTP client
+    │   │   │       ├── Models.kt            # Data classes
+    │   │   │       └── SessionManager.kt    # Credential storage
     │   └── res/                         # Resources
     └── test/                            # Unit tests
 ```
