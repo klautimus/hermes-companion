@@ -212,6 +212,12 @@ async def handle_session_messages(request: web.Request) -> web.Response:
     return await HermesProxy.forward(request, f"/api/sessions/{sid}/messages")
 
 
+# Chat proxy — forward to Hermes API /v1/chat/completions
+async def handle_chat_proxy(request: web.Request) -> web.Response:
+    """POST /v1/chat/completions — proxy to Hermes API with Bearer auth."""
+    return await HermesProxy.forward(request, "/v1/chat/completions")
+
+
 # Kanban handlers
 async def handle_kanban_boards(request: web.Request) -> web.Response:
     code, out, err = _kanban(["boards", "list", "--json"])
@@ -522,6 +528,9 @@ async def create_app() -> web.Application:
     app.router.add_get("/api/sessions/{session_id}", handle_session_detail)
     app.router.add_get("/api/sessions/{session_id}/messages", handle_session_messages)
     app.router.add_delete("/api/sessions/{session_id}", handle_session_delete)
+
+    # Chat proxy
+    app.router.add_post("/v1/chat/completions", handle_chat_proxy)
 
     # Kanban
     app.router.add_get("/api/kanban/boards", handle_kanban_boards)
