@@ -16,14 +16,25 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import org.hermes.community.companion.data.DeepLinkConfig
 import org.hermes.community.companion.data.SessionManager
+import org.hermes.community.companion.data.SessionMigration
 
 class MainActivity : ComponentActivity() {
     private var deepLinkConfig: DeepLinkConfig? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Migrate credentials from plaintext DataStore to EncryptedSharedPreferences
+        // This must complete before any SessionManager access, but we launch it
+        // concurrently since SessionManager.init is lazy
+        lifecycleScope.launch {
+            SessionMigration.migrateIfNeeded(applicationContext)
+        }
+
         // Capture deep link from intent
         deepLinkConfig = parseDeepLinkIntent(intent)
 

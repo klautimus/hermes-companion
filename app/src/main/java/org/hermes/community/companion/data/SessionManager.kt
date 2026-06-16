@@ -1,77 +1,107 @@
 package org.hermes.community.companion.data
 
 import android.content.Context
-import androidx.datastore.preferences.core.*
+import android.content.SharedPreferences
+import android.util.Log
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.callbackFlow
 
-private val Context.dataStore by preferencesDataStore(name = "hermes_settings")
+internal val Context.legacyDataStore by preferencesDataStore(name = "hermes_settings")
 
 class SessionManager(private val context: Context) {
     companion object {
-        // SETUP_COMPLETE flag
         const val SETUP_COMPLETE_KEY = "setup_complete"
-        // Defaults for first-run (user must configure for their own server)
         const val DEFAULT_URL = ""
         const val DEFAULT_USERNAME = ""
         const val DEFAULT_PASSWORD = ""
         const val DEFAULT_BOARD = "default"
+
+        val LEGACY_KEY_BASE_URL: Preferences.Key<String> = stringPreferencesKey("base_url")
+        val LEGACY_KEY_USERNAME: Preferences.Key<String> = stringPreferencesKey("username")
+        val LEGACY_KEY_PASSWORD: Preferences.Key<String> = stringPreferencesKey("password")
+        val LEGACY_KEY_BOARD: Preferences.Key<String> = stringPreferencesKey("board")
     }
 
-    private val KEY_URL = stringPreferencesKey("base_url")
-    private val KEY_USERNAME = stringPreferencesKey("username")
-    private val KEY_PASSWORD = stringPreferencesKey("password")
-    private val KEY_BOARD = stringPreferencesKey("board")
-    private val KEY_SETUP_COMPLETE = booleanPreferencesKey(SETUP_COMPLETE_KEY)
+    private val prefs: SharedPreferences by lazy {
+        try {
+            SessionMigration.encryptedPrefs(context.applicationContext)
+        } catch (e: Exception) {
+            // Fallback for test environments where Android Keystore is unavailable
+            Log.w("SessionManager", "EncryptedSharedPreferences not available, falling back", e)
+            context.getSharedPreferences("hermes_settings_fallback", Context.MODE_PRIVATE)
+        }
+    }
 
-    // Defaults for first-run (user must configure for their own server)
-    val baseUrl: Flow<String> = context.dataStore.data.map { it[KEY_URL] ?: DEFAULT_URL }
-    val username: Flow<String> = context.dataStore.data.map { it[KEY_USERNAME] ?: DEFAULT_USERNAME }
-    val password: Flow<String> = context.dataStore.data.map { it[KEY_PASSWORD] ?: DEFAULT_PASSWORD }
-    val board: Flow<String> = context.dataStore.data.map { it[KEY_BOARD] ?: DEFAULT_BOARD }
-    val setupComplete: Flow<Boolean> = context.dataStore.data.map { it[KEY_SETUP_COMPLETE] ?: false }
+    private val KEY_URL = "base_url"
+    private val KEY_USERNAME = "username"
+    private val KEY_PASSWORD = "password"
+    private val KEY_BOARD = "board"
+    private val KEY_SETUP_COMPLETE = SETUP_COMPLETE_KEY
+
+    val baseUrl: Flow<String> = prefs.flowForKey(KEY_URL, DEFAULT_URL)
+    val username: Flow<String> = prefs.flowForKey(KEY_USERNAME, DEFAULT_USERNAME)
+    val password: Flow<String> = prefs.flowForKey(KEY_PASSWORD, DEFAULT_PASSWORD)
+    val board: Flow<String> = prefs.flowForKey(KEY_BOARD, DEFAULT_BOARD)
+    val setupComplete: Flow<Boolean> = prefs.flowForBooleanKey(KEY_SETUP_COMPLETE, false)
 
     suspend fun setBaseUrl(url: String) {
-        context.dataStore.edit { it[KEY_URL] = url }
+        prefs.edit().putString(KEY_URL, url).apply()
     }
 
     suspend fun setUsername(user: String) {
-        context.dataStore.edit { it[KEY_USERNAME] = user }
+        prefs.edit().putString(KEY_USERNAME, user).apply()
     }
 
     suspend fun setPassword(pass: String) {
-        context.dataStore.edit { it[KEY_PASSWORD] = pass }
+        prefs.edit().putString(KEY_PASSWORD, pass).apply()
     }
 
     suspend fun setBoard(board: String) {
-        context.dataStore.edit { it[KEY_BOARD] = board }
+        prefs.edit().putString(KEY_BOARD, board).apply()
     }
 
     suspend fun setSetupComplete() {
-        context.dataStore.edit { it[KEY_SETUP_COMPLETE] = true }
+        prefs.edit().putBoolean(KEY_SETUP_COMPLETE, true).apply()
     }
 
     suspend fun isConfigured(): Boolean {
-        val prefs = context.dataStore.data.first()
-        return !prefs[KEY_URL].isNullOrBlank() &&
-               !prefs[KEY_USERNAME].isNullOrBlank() &&
-               !prefs[KEY_PASSWORD].isNullOrBlank()
+        return !prefs.getString(KEY_URL, null).isNullOrBlank() &&
+               !prefs.getString(KEY_USERNAME, null).isNullOrBlank() &&
+               !prefs.getString(KEY_PASSWORD, null).isNullOrBlank()
     }
 
     suspend fun getPasswordSnapshot(): String {
-        return context.dataStore.data.first()[KEY_PASSWORD] ?: ""
+        return prefs.getString(KEY_PASSWORD, "") ?: ""
     }
 
-    // Test helper: clear all DataStore values
     suspend fun clearAll() {
-        context.dataStore.edit {
-            it[KEY_URL] = ""
-            it[KEY_USERNAME] = ""
-            it[KEY_PASSWORD] = ""
-            it[KEY_BOARD] = "default"
-            it[KEY_SETUP_COMPLETE] = false
+        prefs.edit().clear().apply()
+    }
+}
+
+private fun SharedPreferences.flowForKey(key: String, default: String): Flow<String> = callbackFlow {
+    val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+        if (changedKey == key) {
+            trySend(getString(key, default) ?: default)
         }
     }
+    registerOnSharedPreferenceChangeListener(listener)
+    trySend(getString(key, default) ?: default)
+    awaitClose { unregisterOnSharedPreferenceChangeListener(listener) }
+}
+
+private fun SharedPreferences.flowForBooleanKey(key: String, default: Boolean): Flow<Boolean> = callbackFlow {
+    val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+        if (changedKey == key) {
+            trySend(getBoolean(key, default))
+        }
+    }
+    registerOnSharedPreferenceChangeListener(listener)
+    trySend(getBoolean(key, default))
+    awaitClose { unregisterOnSharedPreferenceChangeListener(listener) }
 }

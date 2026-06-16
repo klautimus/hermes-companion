@@ -89,6 +89,7 @@ fun QrScannerScreen(
                             .build()
                             .also { analysis ->
                                 analysis.setAnalyzer(Executors.newSingleThreadExecutor()) { imageProxy ->
+                                    @Suppress("UnsafeOptInUsageError")
                                     val mediaImage = imageProxy.image
                                     if (mediaImage != null) {
                                         val image = InputImage.fromMediaImage(
