@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.hermes.community.companion.data.ApiClient
 import org.hermes.community.companion.data.SessionManager
+import org.hermes.community.companion.data.StorageMode
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -95,6 +96,44 @@ fun SetupWizardScreen(
                 }
             },
             onDismiss = { showQrScanner = false }
+        )
+        return
+    }
+
+    // Insecure storage consent dialog — must be acknowledged before setup completes
+    val acknowledgedInsecureStorage = remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        // Reset acknowledgment when wizard starts/re-enters
+        acknowledgedInsecureStorage.value = false
+    }
+    val storageMode = remember { sessionManager.getStorageMode() }
+    if (storageMode is StorageMode.Plaintext && !acknowledgedInsecureStorage.value) {
+        AlertDialog(
+            onDismissRequest = { /* do nothing — must explicitly choose */ },
+            title = { Text("⚠️ Insecure storage detected") },
+            text = {
+                Text("""
+                    Your device's Android Keystore is unavailable. Credentials will be stored in plaintext.
+
+                    This is a security risk. Anyone with access to your device can read your password.
+
+                    Recommended actions:
+                    1. Use a real device instead of an emulator
+                    2. Or accept the risk and continue (NOT RECOMMENDED)
+
+                    Reason: ${storageMode.reason}
+                """.trimIndent())
+            },
+            confirmButton = {
+                TextButton(onClick = { acknowledgedInsecureStorage.value = true }) {
+                    Text("I understand, continue")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { /* exit setup — user can restart */ }) {
+                    Text("Cancel")
+                }
+            },
         )
         return
     }

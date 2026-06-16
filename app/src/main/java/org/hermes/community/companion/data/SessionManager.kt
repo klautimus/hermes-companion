@@ -13,6 +13,12 @@ import kotlinx.coroutines.flow.callbackFlow
 
 internal val Context.legacyDataStore by preferencesDataStore(name = "hermes_settings")
 
+sealed class StorageMode {
+    object Encrypted : StorageMode()
+    data class Plaintext(val reason: String) : StorageMode()
+    data class Unavailable(val reason: String) : StorageMode()
+}
+
 class SessionManager(private val context: Context) {
     companion object {
         const val SETUP_COMPLETE_KEY = "setup_complete"
@@ -27,15 +33,33 @@ class SessionManager(private val context: Context) {
         val LEGACY_KEY_BOARD: Preferences.Key<String> = stringPreferencesKey("board")
     }
 
-    private val prefs: SharedPreferences by lazy {
+    private val _storageMode: StorageMode by lazy {
         try {
             SessionMigration.encryptedPrefs(context.applicationContext)
+            StorageMode.Encrypted
         } catch (e: Exception) {
-            // Fallback for test environments where Android Keystore is unavailable
-            Log.w("SessionManager", "EncryptedSharedPreferences not available, falling back", e)
-            context.getSharedPreferences("hermes_settings_fallback", Context.MODE_PRIVATE)
+            Log.e("SessionManager", "EncryptedSharedPreferences unavailable, security degraded", e)
+            StorageMode.Plaintext(reason = e.message ?: "Unknown error")
         }
     }
+
+    private val prefs: SharedPreferences by lazy {
+        when (val mode = _storageMode) {
+            is StorageMode.Encrypted -> SessionMigration.encryptedPrefs(context.applicationContext)
+            is StorageMode.Plaintext -> context.getSharedPreferences("hermes_settings_fallback", Context.MODE_PRIVATE)
+            else -> error("unreachable")
+        }
+    }
+
+    init {
+        when (val mode = _storageMode) {
+            is StorageMode.Encrypted -> Log.i("SessionManager", "Storage mode: Encrypted (Android Keystore)")
+            is StorageMode.Plaintext -> Log.w("SessionManager", "Storage mode: Plaintext (Keystore unavailable: ${mode.reason})")
+            is StorageMode.Unavailable -> Log.e("SessionManager", "Storage mode: Unavailable (${mode.reason})")
+        }
+    }
+
+    fun getStorageMode(): StorageMode = _storageMode
 
     private val KEY_URL = "base_url"
     private val KEY_USERNAME = "username"
