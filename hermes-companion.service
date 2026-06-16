@@ -1,28 +1,16 @@
+# DEPRECATED: use the daemon repo template at
+# src/hermes_companion/systemd/hermes-companion.service
+# This file is kept for reference only. All changes go in the daemon repo.
 [Unit]
 Description=Hermes Companion Server
 After=network.target
 
 [Service]
 Type=simple
-User=hermes
-Group=hermes
-WorkingDirectory=/opt/hermes-companion/server
-ExecStart=/opt/hermes-companion/server/venv/bin/python server.py
+ExecStart=/home/kevin/.hermes/hermes-agent/venv/bin/python3 /home/kevin/.hermes/companion/companion_cli.py serve
+WorkingDirectory=/home/kevin/.hermes/companion
 Restart=on-failure
 RestartSec=5
 
-# Environment
-Environment=API_SERVER_KEY=
-Environment=COMPANION_HOST=127.0.0.1
-Environment=COMPANION_PORT=8777
-Environment=HERMES_API_URL=http://127.0.0.1:8642
-
-# Security hardening
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/hermes-companion/data
-PrivateTmp=true
-
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
