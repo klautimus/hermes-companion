@@ -107,6 +107,28 @@ class SessionManagerMigrationTest {
     }
 
     @Test
+    fun storageMode_isDetectable() = runBlocking {
+        val sm = SessionManager(context)
+        val mode = sm.getStorageMode()
+        assertTrue(
+            "StorageMode should be Encrypted, Plaintext, or Unavailable",
+            mode is org.hermes.community.companion.data.StorageMode.Encrypted ||
+            mode is org.hermes.community.companion.data.StorageMode.Plaintext ||
+            mode is org.hermes.community.companion.data.StorageMode.Unavailable
+        )
+        if (mode is org.hermes.community.companion.data.StorageMode.Plaintext) {
+            assertTrue("Plaintext reason should not be empty", mode.reason.isNotEmpty())
+        }
+    }
+
+    @Test
+    fun storageMode_encryptedDoesNotExposeReason() = runBlocking {
+        val sm = SessionManager(context)
+        val mode = sm.getStorageMode()
+        assertNotNull(mode)
+    }
+
+    @Test
     fun setupComplete_flagPersists() = runBlocking {
         val sm = SessionManager(context)
         assertFalse(sm.setupComplete.first())

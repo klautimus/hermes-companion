@@ -15,4 +15,5 @@ Thumbs.db
 *.log
 
 # Hermes local-only
-__pycache/
+__pycache__/
+keystore.properties

@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -173,3 +174,50 @@ class ApiClient(
 }
 
 class ApiException(val code: Int, override val message: String) : Exception(message)
+
+// ── Setup Token Redemption ──
+
+data class RedeemResponse(
+    val username: String,
+    val password: String,
+    val host: String,
+    val port: Int,
+    val board: String,
+)
+
+/**
+ * Redeem a setup token for actual credentials.
+ * This call is UNAUTHENTICATED — the endpoint has no auth requirement.
+ * We make a raw OkHttp request to avoid ApiClient's automatic auth header.
+ */
+suspend fun redeemSetupToken(baseUrl: String, token: String): Result<RedeemResponse> = withContext(Dispatchers.IO) {
+    runCatching {
+        val url = baseUrl.removeSuffix("/") + "/api/setup/redeem"
+        val jsonBody = """{"token":"$token"}"""
+        val body = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
+        val request = Request.Builder()
+            .url(url)
+            .post(body)
+            .header("Accept", "application/json")
+            .build()
+        val client = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw ApiException(response.code, "Setup redeem failed: ${response.code}")
+            }
+            val respBody = response.body?.string() ?: throw ApiException(0, "Empty response")
+            val json = Json { ignoreUnknownKeys = true }
+            val obj = json.parseToJsonElement(respBody).jsonObject
+            RedeemResponse(
+                username = obj["username"]?.jsonPrimitive?.content ?: "",
+                password = obj["password"]?.jsonPrimitive?.content ?: "",
+                host = obj["host"]?.jsonPrimitive?.content ?: "",
+                port = obj["port"]?.jsonPrimitive?.content?.toIntOrNull() ?: 8777,
+                board = obj["board"]?.jsonPrimitive?.content ?: "default",
+            )
+        }
+    }
+}

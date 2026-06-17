@@ -17,8 +17,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import org.hermes.community.companion.data.ApiClient
 import org.hermes.community.companion.data.CompanionHealth
+import org.hermes.community.companion.data.SessionManager
+import org.hermes.community.companion.data.StorageMode
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
@@ -46,6 +49,39 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: MainViewModel, onRe
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        // Storage mode security banner
+        val context = LocalContext.current
+        val sessionManager = remember { SessionManager(context) }
+        val storageMode = sessionManager.getStorageMode()
+        when (storageMode) {
+            is StorageMode.Encrypted -> { /* silent — no banner needed */ }
+            is StorageMode.Plaintext -> {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("⚠️ Credentials stored in PLAINTEXT", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Android Keystore is unavailable. Your password and token are stored without encryption.")
+                        Text("Reason: ${storageMode.reason}")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("This usually happens on emulators or devices with restricted Keystore access. On a real device, encryption should work automatically.")
+                    }
+                }
+            }
+            is StorageMode.Unavailable -> {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("⚠️ Credentials storage unavailable", style = MaterialTheme.typography.titleMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Cannot store credentials: ${storageMode.reason}")
+                    }
+                }
+            }
+        }
+
         Text("Connection", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
 
         // Server URL

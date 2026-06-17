@@ -200,5 +200,6 @@ data class DeepLinkConfig(
     val serverUrl: String = "",
     val username: String = "",
     val password: String = "",
+    val token: String? = null,  // NEW: setup token, takes precedence over password
     val board: String = "",
 )

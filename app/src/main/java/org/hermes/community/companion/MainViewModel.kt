@@ -693,5 +693,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _deepLinkConfig.value = null
     }
 
+    // ─── Setup Token Redemption ─────────────────────────────
+
+    /**
+     * Redeem a setup token against the daemon's /api/setup/redeem endpoint.
+     * On success, populates SessionManager with the returned credentials.
+     */
+    suspend fun redeemSetupToken(baseUrl: String, token: String): Result<Unit> {
+        val response = org.hermes.community.companion.data.redeemSetupToken(baseUrl, token).getOrElse {
+            return Result.failure(it)
+        }
+        session.setBaseUrl("https://${response.host}:${response.port}")
+        session.setUsername(response.username)
+        session.setPassword(response.password)
+        session.setBoard(response.board)
+        return Result.success(Unit)
+    }
+
     // ─── Helpers ────────────────────────────────────────────
 }
