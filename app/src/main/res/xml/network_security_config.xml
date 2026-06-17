@@ -13,4 +13,14 @@
         <domain includeSubdomains="true">127.0.0.1</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>
     </domain-config>
+
+    <!-- Cloudflare tunnel: cleartext permitted for the public hostname
+         (Cloudflare terminates TLS; the tunnel forwards cleartext to the
+         local daemon. The on-the-wire connection from device to Cloudflare
+         edge is HTTPS, so this is safe in transit; cleartext applies only
+         to the local loopback inside the tunnel.) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">kevlarscreations.com</domain>
+        <domain includeSubdomains="true">android.kevlarscreations.com</domain>
+    </domain-config>
 </network-security-config>
