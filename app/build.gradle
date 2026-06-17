@@ -4,6 +4,16 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
+// Load signing config from gitignored file
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    println "SIGNING: keystore.properties loaded, storeFile=${keystoreProperties['storeFile']}"
+} else {
+    println "SIGNING: keystore.properties NOT FOUND at ${keystorePropertiesFile.absolutePath}"
+}
+
 android {
     namespace 'org.hermes.community.companion'
     compileSdk 34
@@ -15,8 +25,26 @@ android {
         versionName "1.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                println "SIGNING: release signingConfig configured with storeFile=${keystoreProperties['storeFile']}"
+            } else {
+                println "SIGNING: skipping release signingConfig - no keystore.properties"
+            }
+        }
+    }
+
     buildTypes {
-        release { minifyEnabled true; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' }
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
     }
     buildFeatures { compose true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }

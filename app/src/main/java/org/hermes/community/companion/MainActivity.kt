@@ -83,15 +83,17 @@ class MainActivity : ComponentActivity() {
         parseDeepLinkIntent(intent)?.let { deepLinkConfig = it }
     }
 
-    private fun parseDeepLinkIntent(intent: Intent): DeepLinkConfig? {
+    internal fun parseDeepLinkIntent(intent: Intent): DeepLinkConfig? {
         val data = intent.data ?: return null
         if (data.scheme != "hermescompanion") return null
         if (data.host != "configure") return null
+        // Paired with daemon setup_wizard.py:generate_qr_code — keep in sync
 
         return DeepLinkConfig(
             serverUrl = data.getQueryParameter("url") ?: "",
             username = data.getQueryParameter("user") ?: "",
             password = data.getQueryParameter("pass") ?: "",
+            token = data.getQueryParameter("token"),
             board = data.getQueryParameter("board") ?: "",
         )
     }

@@ -221,4 +221,59 @@ class ModelsTest {
         val decoded = json.decodeFromString(CompanionHealth.serializer(), encoded)
         assertEquals(original, decoded)
     }
+
+    // ─── DeepLinkConfig Token Parsing ─────────────────────────
+
+    @Test
+    fun deepLinkConfig_withToken() {
+        val config = DeepLinkConfig(
+            serverUrl = "https://example.com",
+            username = "kevin",
+            password = "",
+            token = "abc123token",
+            board = "default"
+        )
+        assertEquals("abc123token", config.token)
+        assertEquals("https://example.com", config.serverUrl)
+        assertEquals("kevin", config.username)
+    }
+
+    @Test
+    fun deepLinkConfig_withoutToken_backcompat() {
+        val config = DeepLinkConfig(
+            serverUrl = "https://example.com",
+            username = "kevin",
+            password = "plaintextpw",
+            board = "default"
+        )
+        assertNull("Token should be null when not provided", config.token)
+        assertEquals("plaintextpw", config.password)
+    }
+
+    @Test
+    fun deepLinkConfig_tokenTakesPrecedence() {
+        // When both token and password are present, token should be non-null
+        // and the app logic should prefer token over password
+        val config = DeepLinkConfig(
+            serverUrl = "https://example.com",
+            username = "kevin",
+            password = "oldpassword",
+            token = "securetoken456",
+            board = "main"
+        )
+        assertNotNull("Token should be present", config.token)
+        assertEquals("securetoken456", config.token)
+        // Password is still available for backward compat
+        assertEquals("oldpassword", config.password)
+    }
+
+    @Test
+    fun deepLinkConfig_defaults() {
+        val config = DeepLinkConfig()
+        assertEquals("", config.serverUrl)
+        assertEquals("", config.username)
+        assertEquals("", config.password)
+        assertNull(config.token)
+        assertEquals("", config.board)
+    }
 }

@@ -30,6 +30,7 @@ data class WizardConfig(
     val serverUrl: String = "",
     val username: String = "",
     val password: String = "",
+    val token: String? = null,  // NEW: setup token from QR code
     val board: String = "default"
 )
 
@@ -60,6 +61,7 @@ fun SetupWizardScreen(
                 serverUrl = deepLinkData.serverUrl,
                 username = deepLinkData.username,
                 password = deepLinkData.password,
+                token = deepLinkData.token,
                 board = deepLinkData.board
             )
             if (deepLinkData.serverUrl.isNotBlank() &&
@@ -72,6 +74,24 @@ fun SetupWizardScreen(
         }
     }
 
+    // Auto-redeem setup token when present (from QR scan or deep link)
+    LaunchedEffect(config.token) {
+        val token = config.token
+        if (token != null && config.serverUrl.isNotBlank()) {
+            isLoading = true
+            val result = viewModel.redeemSetupToken(config.serverUrl, token)
+            if (result.isSuccess) {
+                sessionManager.setSetupComplete()
+                onSetupComplete()
+            } else {
+                // Show error — token redemption failed, fall back to manual entry
+                testResult = "Token redeem failed: ${result.exceptionOrNull()?.message}"
+                testOk = false
+            }
+            isLoading = false
+        }
+    }
+
     if (showQrScanner) {
         QrScannerScreen(
             onQrCodeScanned = { uriString ->
@@ -81,6 +101,7 @@ fun SetupWizardScreen(
                         serverUrl = parsed.serverUrl,
                         username = parsed.username,
                         password = parsed.password,
+                        token = parsed.token,
                         board = parsed.board
                     )
                     // If QR provides all fields, skip to board selection
@@ -278,7 +299,8 @@ fun SetupWizardScreen(
 
 /**
  * Parse a hermescompanion://configure URI into a WizardConfig.
- * Format: hermescompanion://configure?url=https://...&user=kevin&pass=xxx&board=default
+ * Format: hermescompanion://configure?url=https://...&user=kevin&pass=xxx&token=yyy&board=default
+ * Paired with daemon setup_wizard.py:generate_qr_code — keep in sync
  */
 private fun parseQrUri(uriString: String): WizardConfig? {
     return try {
@@ -288,6 +310,7 @@ private fun parseQrUri(uriString: String): WizardConfig? {
             serverUrl = uri.getQueryParameter("url") ?: "",
             username = uri.getQueryParameter("user") ?: "",
             password = uri.getQueryParameter("pass") ?: "",
+            token = uri.getQueryParameter("token"),
             board = uri.getQueryParameter("board") ?: "default",
         )
     } catch (e: Exception) {
