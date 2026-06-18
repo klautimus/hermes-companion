@@ -493,6 +493,183 @@ async def handle_kanban_task_assign(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "task_id": task_id, "assignee": assignee})
 
 
+async def handle_kanban_task_update(request: web.Request) -> web.Response:
+    """PATCH /api/kanban/tasks/{task_id} — update task fields (title, body, status, priority)."""
+    task_id = request.match_info["task_id"]
+    board = request.query.get("board", "")
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    # Build CLI args for supported operations
+    # For status changes, use dedicated CLI commands
+    status = body.get("status")
+    title = body.get("title")
+    task_body = body.get("body")
+    priority = body.get("priority")
+
+    # Handle status transitions via CLI
+    if status:
+        if status == "done":
+            code, _, err = _kanban(["complete", task_id], board=board)
+        elif status == "blocked":
+            code, _, err = _kanban(["block", task_id], board=board)
+        elif status == "ready":
+            code, _, err = _kanban(["unblock", task_id], board=board)
+        elif status == "archived":
+            code, _, err = _kanban(["archive", task_id], board=board)
+        elif status == "running":
+            code, _, err = _kanban(["claim", task_id], board=board)
+        elif status == "todo":
+            code, _, err = _kanban(["promote", task_id], board=board)
+        else:
+            return web.json_response(
+                {"error": {"code": "VALIDATION_ERROR", "message": f"unsupported status: {status}"}},
+                status=422,
+            )
+        if code != 0:
+            return web.json_response(
+                {"error": {"code": "INTERNAL_ERROR", "message": err or "Failed to update status"}},
+                status=500,
+            )
+
+    # Handle title/body/priority via direct DB update
+    if title is not None or task_body is not None or priority is not None:
+        try:
+            import sys
+            sys.path.insert(0, "/home/kevin/.hermes/hermes-agent")
+            from hermes_cli.kanban_db import connect, board_dir as get_board_dir
+            from pathlib import Path
+
+            # Resolve board DB path
+            kanban_home = Path.home() / ".hermes" / "kanban"
+            if board and board != "default":
+                db_path = kanban_home / "boards" / board / "kanban.db"
+            else:
+                db_path = kanban_home / "kanban.db"
+
+            if db_path.exists():
+                import sqlite3
+                conn = sqlite3.connect(str(db_path))
+                updates = []
+                params = []
+                if title is not None:
+                    updates.append("title = ?")
+                    params.append(title)
+                if task_body is not None:
+                    updates.append("body = ?")
+                    params.append(task_body)
+                if priority is not None:
+                    updates.append("priority = ?")
+                    params.append(priority)
+                params.append(task_id)
+                conn.execute(f"UPDATE tasks SET {', '.join(updates)} WHERE id = ?", params)
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            logger.error("Failed to update task fields: %s", e)
+            return web.json_response(
+                {"error": {"code": "INTERNAL_ERROR", "message": str(e)}},
+                status=500,
+            )
+
+    return web.json_response({"ok": True})
+
+
+async def handle_kanban_task_delete(request: web.Request) -> web.Response:
+    """DELETE /api/kanban/tasks/{task_id} — delete a task."""
+    task_id = request.match_info["task_id"]
+    board = request.query.get("board", "")
+    try:
+        import sys
+        sys.path.insert(0, "/home/kevin/.hermes/hermes-agent")
+        from hermes_cli.kanban_db import delete_task, connect
+        from pathlib import Path
+
+        kanban_home = Path.home() / ".hermes" / "kanban"
+        if board and board != "default":
+            db_path = kanban_home / "boards" / board / "kanban.db"
+        else:
+            db_path = kanban_home / "kanban.db"
+
+        if db_path.exists():
+            import sqlite3
+            conn = sqlite3.connect(str(db_path))
+            delete_task(conn, task_id)
+            conn.close()
+    except Exception as e:
+        logger.error("Failed to delete task: %s", e)
+        return web.json_response(
+            {"error": {"code": "INTERNAL_ERROR", "message": str(e)}},
+            status=500,
+        )
+    return web.json_response({"ok": True})
+
+
+async def handle_kanban_bulk(request: web.Request) -> web.Response:
+    """POST /api/kanban/tasks/bulk — bulk update tasks (set_status, set_assignee, archive)."""
+    board = request.query.get("board", "")
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    task_ids = body.get("task_ids", [])
+    action = body.get("action", "")
+    value = body.get("value", "")
+
+    if not task_ids or not action:
+        return web.json_response(
+            {"error": {"code": "VALIDATION_ERROR", "message": "task_ids and action required"}},
+            status=422,
+        )
+
+    results = []
+    for task_id in task_ids:
+        try:
+            if action == "set_status":
+                if value == "done":
+                    code, _, err = _kanban(["complete", task_id], board=board)
+                elif value == "blocked":
+                    code, _, err = _kanban(["block", task_id], board=board)
+                elif value == "ready":
+                    code, _, err = _kanban(["unblock", task_id], board=board)
+                elif value == "archived":
+                    code, _, err = _kanban(["archive", task_id], board=board)
+                elif value == "running":
+                    code, _, err = _kanban(["claim", task_id], board=board)
+                elif value == "todo":
+                    code, _, err = _kanban(["promote", task_id], board=board)
+                else:
+                    results.append({"task_id": task_id, "error": f"unsupported status: {value}"})
+                    continue
+                if code != 0:
+                    results.append({"task_id": task_id, "error": err})
+                else:
+                    results.append({"task_id": task_id, "ok": True})
+            elif action == "set_assignee":
+                code, _, err = _kanban(["assign", task_id, value], board=board)
+                if code != 0:
+                    results.append({"task_id": task_id, "error": err})
+                else:
+                    results.append({"task_id": task_id, "ok": True})
+            elif action == "archive":
+                code, _, err = _kanban(["archive", task_id], board=board)
+                if code != 0:
+                    results.append({"task_id": task_id, "error": err})
+                else:
+                    results.append({"task_id": task_id, "ok": True})
+            else:
+                results.append({"task_id": task_id, "error": f"unknown action: {action}"})
+        except Exception as e:
+            results.append({"task_id": task_id, "error": str(e)})
+
+    return web.json_response({"results": results})
+
+
 async def handle_attachment_upload(request: web.Request) -> web.Response:
     """POST /api/attachments — upload a file attachment."""
     reader = await request.multipart()
@@ -598,6 +775,9 @@ async def create_app() -> web.Application:
     app.router.add_post("/api/kanban/tasks/{task_id}/complete", handle_kanban_task_complete)
     app.router.add_post("/api/kanban/tasks/{task_id}/comment", handle_kanban_task_comment)
     app.router.add_post("/api/kanban/tasks/{task_id}/assign", handle_kanban_task_assign)
+    app.router.add_patch("/api/kanban/tasks/{task_id}", handle_kanban_task_update)
+    app.router.add_delete("/api/kanban/tasks/{task_id}", handle_kanban_task_delete)
+    app.router.add_post("/api/kanban/tasks/bulk", handle_kanban_bulk)
 
     # Attachments
     app.router.add_post("/api/attachments", handle_attachment_upload)
