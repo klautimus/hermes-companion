@@ -133,14 +133,17 @@ class HermesProxy:
         headers["Authorization"] = f"Bearer {API_KEY}"
         body = await request.read()
         try:
-            upstream = await session.request(
+            async with session.request(
                 request.method, url, headers=headers, data=body or None,
-            )
-            data = await upstream.read()
-            ct = upstream.headers.get("Content-Type", "application/json")
-            if ";" in ct:
-                ct = ct.split(";")[0].strip()
-            return web.Response(body=data, status=upstream.status, content_type=ct)
+            ) as upstream:
+                data = await upstream.read()
+                # DEBUG: Log upstream response details
+                logger.debug("Upstream response: status=%s, content_length=%s, body_len=%s, ct=%s",
+                           upstream.status, upstream.content_length, len(data), upstream.headers.get("Content-Type"))
+                ct = upstream.headers.get("Content-Type", "application/json")
+                if ";" in ct:
+                    ct = ct.split(";")[0].strip()
+                return web.Response(body=data, status=upstream.status, content_type=ct)
         except Exception as e:
             logger.error("Hermes API error: %s", e)
             return web.json_response(
