@@ -24,12 +24,12 @@ from datetime import datetime, timezone
 from aiohttp import web, ClientSession, ClientTimeout
 
 # ── Config ──────────────────────────────────────────────────
-from .config_schema import load_config
-from .first_run import ensure_configured_or_exit
+import config_schema
+import first_run
 
 # Load config (handles first-run check, env overrides, YAML file)
-ensure_configured_or_exit()
-config = load_config()
+first_run.ensure_configured_or_exit()
+config = config_schema.load_config()
 
 HOST = config.server.host
 PORT = config.server.port
@@ -430,6 +430,45 @@ async def handle_kanban_board_delete(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def handle_kanban_profiles(request: web.Request) -> web.Response:
+    """GET /api/kanban/profiles — list available assignee profiles."""
+    code, out, err = _kanban(["assignees", "--json"])
+    if code != 0:
+        return web.json_response(
+            {"error": {"code": "INTERNAL_ERROR", "message": err or "Failed to list profiles"}},
+            status=500,
+        )
+    try:
+        data = json.loads(out)
+        # Extract just the names
+        return web.json_response([item["name"] for item in data if "name" in item])
+    except json.JSONDecodeError:
+        # Fallback to known profiles
+        return web.json_response(["analyst", "ops", "researcher", "writer"])
+
+
+async def handle_kanban_stats(request: web.Request) -> web.Response:
+    """GET /api/kanban/stats?board={slug} — get board statistics."""
+    board = request.query.get("board", "")
+    if not board:
+        return web.json_response(
+            {"error": {"code": "VALIDATION_ERROR", "message": "?board= required"}},
+            status=422,
+        )
+    code, out, err = _kanban(["stats", "--json"], board=board)
+    if code != 0:
+        return web.json_response(
+            {"error": {"code": "INTERNAL_ERROR", "message": err or "Failed to get stats"}},
+            status=500,
+        )
+    try:
+        return web.json_response(json.loads(out))
+    except json.JSONDecodeError:
+        return web.json_response(
+            {"error": {"code": "INTERNAL_ERROR", "message": "parse error"}}, status=500,
+        )
+
+
 async def handle_kanban_task_assign(request: web.Request) -> web.Response:
     """POST /api/kanban/tasks/{task_id}/assign — assign a task."""
     task_id = request.match_info["task_id"]
@@ -552,6 +591,8 @@ async def create_app() -> web.Application:
     app.router.add_post("/api/kanban/boards/{slug}/rename", handle_kanban_board_rename)
     app.router.add_post("/api/kanban/boards/{slug}/archive", handle_kanban_board_archive)
     app.router.add_delete("/api/kanban/boards/{slug}", handle_kanban_board_delete)
+    app.router.add_get("/api/kanban/profiles", handle_kanban_profiles)
+    app.router.add_get("/api/kanban/stats", handle_kanban_stats)
     app.router.add_get("/api/kanban/tasks", handle_kanban_tasks_list)
     app.router.add_get("/api/kanban/tasks/{task_id}", handle_kanban_task_show)
     app.router.add_post("/api/kanban/tasks/{task_id}/complete", handle_kanban_task_complete)

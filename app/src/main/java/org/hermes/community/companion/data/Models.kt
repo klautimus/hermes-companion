@@ -32,8 +32,8 @@ data class KanbanTask(
     val assignee: String? = null,
     val priority: Int = 1,
     val body: String? = null,
-    @SerialName("created_at") val created: String? = null,
-    @SerialName("updated_at") val updated: String? = null,
+    @SerialName("created_at") val created: Long? = null,
+    @SerialName("updated_at") val updated: Long? = null,
     @SerialName("comment_count") val commentCount: Int = 0,
     @SerialName("link_count") val linkCount: Int = 0,
     @SerialName("link_counts") val linkCounts: LinkCounts? = null,
@@ -183,7 +183,7 @@ data class SessionMessages(
 @Serializable
 data class BoardStats(
     val total: Int = 0,
-    @SerialName("counts_by_status") val countsByStatus: Map<String, Int> = emptyMap(),
+    @SerialName("by_status") val countsByStatus: Map<String, Int> = emptyMap(),
     @SerialName("oldest_ready_age_seconds") val oldestReadyAgeSeconds: Long? = null,
 )
 

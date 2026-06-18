@@ -8,3 +8,4 @@
 | 004 | Android encrypted prefs | DONE | 2f6fe5f |
 || 005 | Network security config — cleartext traffic restriction | DONE | 6c4a8cb |
 || 008 | Android test rewrite — characterization tests for ViewModel | DONE | 420f1cb |
+| 005 | Fix Kanban JSON deserialization — timestamp type mismatch | TODO | — |
