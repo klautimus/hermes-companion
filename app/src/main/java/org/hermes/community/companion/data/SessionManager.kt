@@ -73,6 +73,9 @@ class SessionManager(private val context: Context) {
     val board: Flow<String> = prefs.flowForKey(KEY_BOARD, DEFAULT_BOARD)
     val setupComplete: Flow<Boolean> = prefs.flowForBooleanKey(KEY_SETUP_COMPLETE, false)
 
+    private val KEY_REMEMBER_URL = "remember_url"
+    val rememberUrl: Flow<Boolean> = prefs.flowForBooleanKey(KEY_REMEMBER_URL, false)
+
     suspend fun setBaseUrl(url: String) {
         prefs.edit().putString(KEY_URL, url).apply()
     }
@@ -87,6 +90,10 @@ class SessionManager(private val context: Context) {
 
     suspend fun setBoard(board: String) {
         prefs.edit().putString(KEY_BOARD, board).apply()
+    }
+
+    suspend fun setRememberUrl(remember: Boolean) {
+        prefs.edit().putBoolean(KEY_REMEMBER_URL, remember).apply()
     }
 
     suspend fun setSetupComplete() {

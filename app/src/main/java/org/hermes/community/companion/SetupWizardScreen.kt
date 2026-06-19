@@ -32,7 +32,8 @@ data class WizardConfig(
     val username: String = "",
     val password: String = "",
     val token: String? = null,  // NEW: setup token from QR code
-    val board: String = "default"
+    val board: String = "default",
+    val rememberUrl: Boolean = true
 )
 
 @Composable
@@ -192,7 +193,8 @@ fun SetupWizardScreen(
                 onTestResult = { result, ok -> testResult = result; testOk = ok },
                 isLoading = isLoading,
                 onLoadingChange = { isLoading = it },
-                onQrScan = { showQrScanner = true }
+                onQrScan = { showQrScanner = true },
+                sessionManager = sessionManager
             )
             1 -> CredentialsScreen(
                 config = config,
@@ -422,7 +424,8 @@ private fun ServerConnectionScreen(
     onTestResult: (String?, Boolean) -> Unit,
     isLoading: Boolean,
     onLoadingChange: (Boolean) -> Unit,
-    onQrScan: () -> Unit
+    onQrScan: () -> Unit,
+    sessionManager: SessionManager
 ) {
     val scope = rememberCoroutineScope()
 
@@ -443,6 +446,22 @@ private fun ServerConnectionScreen(
                 "Please enter a valid URL (https://...)",
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        // Save URL checkbox
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Checkbox(
+                checked = config.rememberUrl,
+                onCheckedChange = { onConfigChange(config.copy(rememberUrl = it)) }
+            )
+            Text(
+                "Remember this server URL",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(start = 8.dp)
             )
         }
 
@@ -468,6 +487,10 @@ private fun ServerConnectionScreen(
                             "Connected ✓ (hermes_api=${if (health.hermesReachable) "up" else "down"})",
                             health.hermesReachable
                         )
+                        // Auto-save URL if checkbox is checked
+                        if (config.rememberUrl) {
+                            sessionManager.setBaseUrl(config.serverUrl)
+                        }
                     } catch (e: Exception) {
                         onTestResult("Failed: ${e.message}", false)
                     } finally {
