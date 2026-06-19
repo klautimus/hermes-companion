@@ -46,7 +46,37 @@ class SessionManager(private val context: Context) {
     private val prefs: SharedPreferences by lazy {
         when (val mode = _storageMode) {
             is StorageMode.Encrypted -> SessionMigration.encryptedPrefs(context.applicationContext)
-            is StorageMode.Plaintext -> context.getSharedPreferences("hermes_settings_fallback", Context.MODE_PRIVATE)
+            is StorageMode.Plaintext ->
+                // Fail-closed: use an empty in-memory prefs that discards all writes.
+                // The SettingsScreen already shows a security error banner.
+                // We do NOT store credentials in plaintext SharedPreferences.
+                object : SharedPreferences {
+                    // Minimal no-op implementation that stores nothing
+                    private val map = mutableMapOf<String, Any?>()
+                    override fun getAll() = map.toMap()
+                    override fun getString(k: String, d: String?) = d
+                    override fun getInt(k: String, d: Int) = d
+                    override fun getBoolean(k: String, d: Boolean) = d
+                    override fun contains(k: String) = false
+                    override fun edit() = object : SharedPreferences.Editor {
+                        override fun putString(k: String, v: String?) = this
+                        override fun putInt(k: String, v: Int) = this
+                        override fun putBoolean(k: String, v: Boolean) = this
+                        override fun clear() = this
+                        override fun remove(k: String) = this
+                        override fun putLong(k: String, v: Long) = this
+                        override fun putFloat(k: String, v: Float) = this
+                        override fun putStringSet(k: String, v: Set<String>?) = this
+                        override fun apply() {}
+                        override fun commit() = true
+                    }
+                    override fun registerOnSharedPreferenceChangeListener(l: SharedPreferences.OnSharedPreferenceChangeListener) = Unit
+                    override fun unregisterOnSharedPreferenceChangeListener(l: SharedPreferences.OnSharedPreferenceChangeListener) = Unit
+                    override fun getLong(k: String, d: Long) = d
+                    override fun getFloat(k: String, d: Float) = d
+                    @Suppress("UNCHECKED_CAST")
+                    override fun getStringSet(k: String, d: Set<String>?) = d
+                }
             else -> error("unreachable")
         }
     }

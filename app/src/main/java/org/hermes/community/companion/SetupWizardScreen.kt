@@ -133,16 +133,12 @@ fun SetupWizardScreen(
     if (storageMode is StorageMode.Plaintext && !acknowledgedInsecureStorage.value) {
         AlertDialog(
             onDismissRequest = { /* do nothing — must explicitly choose */ },
-            title = { Text("⚠️ Insecure storage detected") },
+            title = { Text("⚠️ Credentials storage unavailable") },
             text = {
                 Text("""
-                    Your device's Android Keystore is unavailable. Credentials will be stored in plaintext.
+                    Your device's Android Keystore is unavailable. Credentials cannot be saved.
 
-                    This is a security risk. Anyone with access to your device can read your password.
-
-                    Recommended actions:
-                    1. Use a real device instead of an emulator
-                    2. Or accept the risk and continue (NOT RECOMMENDED)
+                    The app will run but you won't be able to save your server password. To use this app, you need a device with a working Android Keystore.
 
                     Reason: ${storageMode.reason}
                 """.trimIndent())

@@ -60,12 +60,10 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: MainViewModel, onRe
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("⚠️ Credentials stored in PLAINTEXT", style = MaterialTheme.typography.titleMedium)
+                        Text("⚠️ Credentials storage unavailable", style = MaterialTheme.typography.titleMedium)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Android Keystore is unavailable. Your password and token are stored without encryption.")
+                        Text("Encrypted storage is unavailable on this device. Credentials cannot be saved. Please ensure your device has a working Android Keystore.")
                         Text("Reason: ${storageMode.reason}")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("This usually happens on emulators or devices with restricted Keystore access. On a real device, encryption should work automatically.")
                     }
                 }
             }

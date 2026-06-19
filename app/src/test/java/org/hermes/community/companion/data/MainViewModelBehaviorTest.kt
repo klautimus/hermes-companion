@@ -223,7 +223,13 @@ class MainViewModelBehaviorTest {
     fun setBoard_updatesBoardSlug() = runTest {
         viewModel.setBoard("my-board")
         advanceUntilIdle()
-        assertEquals("my-board", viewModel.boardSlug.value)
+        val mode = SessionManager(ApplicationProvider.getApplicationContext()).getStorageMode()
+        if (mode is StorageMode.Plaintext) {
+            // Fail-closed: board write is discarded, slug stays at default
+            assertEquals("default", viewModel.boardSlug.value)
+        } else {
+            assertEquals("my-board", viewModel.boardSlug.value)
+        }
     }
 
     @Test
@@ -232,8 +238,13 @@ class MainViewModelBehaviorTest {
         advanceUntilIdle()
         // setBoard calls loadSessions, loadBoards, loadTasks
         // Without a server, errors are set but no crash
-        // The board slug should be updated regardless
-        assertEquals("test-board", viewModel.boardSlug.value)
+        val mode = SessionManager(ApplicationProvider.getApplicationContext()).getStorageMode()
+        if (mode is StorageMode.Plaintext) {
+            assertEquals("default", viewModel.boardSlug.value)
+        } else {
+            // The board slug should be updated regardless
+            assertEquals("test-board", viewModel.boardSlug.value)
+        }
     }
 
     // ─── Error Path Tests ────────────────────────────────────
@@ -284,14 +295,25 @@ class MainViewModelBehaviorTest {
     fun saveSettings_updatesBaseUrl() = runTest {
         viewModel.saveSettings("http://myserver:8777", "myuser", "mypass")
         advanceUntilIdle()
-        assertEquals("http://myserver:8777", viewModel.baseUrl.value)
+        // In Plaintext mode (no Keystore), prefs are fail-closed: writes are discarded
+        val mode = SessionManager(ApplicationProvider.getApplicationContext()).getStorageMode()
+        if (mode is StorageMode.Plaintext) {
+            assertEquals("", viewModel.baseUrl.value)
+        } else {
+            assertEquals("http://myserver:8777", viewModel.baseUrl.value)
+        }
     }
 
     @Test
     fun saveSettings_updatesUsername() = runTest {
         viewModel.saveSettings("http://myserver:8777", "myuser", "mypass")
         advanceUntilIdle()
-        assertEquals("myuser", viewModel.username.value)
+        val mode = SessionManager(ApplicationProvider.getApplicationContext()).getStorageMode()
+        if (mode is StorageMode.Plaintext) {
+            assertEquals("", viewModel.username.value)
+        } else {
+            assertEquals("myuser", viewModel.username.value)
+        }
     }
 
     @Test
@@ -306,7 +328,12 @@ class MainViewModelBehaviorTest {
 
         // The ViewModel should not crash; password preservation is internal
         // to SessionManager. We verify the method completes without error.
-        assertEquals("http://localhost:8777", viewModel.baseUrl.value)
+        val mode = SessionManager(ApplicationProvider.getApplicationContext()).getStorageMode()
+        if (mode is StorageMode.Plaintext) {
+            assertEquals("", viewModel.baseUrl.value)
+        } else {
+            assertEquals("http://localhost:8777", viewModel.baseUrl.value)
+        }
     }
 
     // ─── clearDeepLinkConfig() ───────────────────────────────

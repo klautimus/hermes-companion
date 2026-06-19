@@ -28,9 +28,11 @@ class SessionManagerMigrationTest {
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         context = ApplicationProvider.getApplicationContext()
-        // Clear any existing prefs
-        context.getSharedPreferences("hermes_settings_fallback", Application.MODE_PRIVATE)
-            .edit().clear().apply()
+        // Clear any existing prefs (both encrypted and fallback)
+        try {
+            context.getSharedPreferences("hermes_settings_fallback", Application.MODE_PRIVATE)
+                .edit().clear().apply()
+        } catch (_: Exception) {}
         runBlocking {
             val sm = SessionManager(context)
             sm.clearAll()
@@ -40,17 +42,39 @@ class SessionManagerMigrationTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
-        context.getSharedPreferences("hermes_settings_fallback", Application.MODE_PRIVATE)
-            .edit().clear().apply()
+        try {
+            context.getSharedPreferences("hermes_settings_fallback", Application.MODE_PRIVATE)
+                .edit().clear().apply()
+        } catch (_: Exception) {}
         runBlocking {
             val sm = SessionManager(context)
             sm.clearAll()
         }
     }
 
+    private fun isEncryptedMode(): Boolean {
+        return runBlocking {
+            val sm = SessionManager(context)
+            sm.getStorageMode() is StorageMode.Encrypted
+        }
+    }
+
     @Test
     fun encryptedPrefsStoresAndRetrievesValues() = runBlocking {
         val sm = SessionManager(context)
+        if (sm.getStorageMode() is StorageMode.Plaintext) {
+            // In Plaintext mode, prefs are fail-closed (no-op): writes are discarded, reads return defaults.
+            // This is the expected security behavior — credentials are never stored in plaintext.
+            sm.setBaseUrl("https://example.com")
+            sm.setUsername("alice")
+            sm.setPassword("secret123")
+            sm.setBoard("my-board")
+            assertEquals("", sm.baseUrl.first())
+            assertEquals("", sm.username.first())
+            assertEquals("", sm.password.first())
+            assertEquals("default", sm.board.first())
+            return@runBlocking
+        }
         sm.setBaseUrl("https://example.com")
         sm.setUsername("alice")
         sm.setPassword("secret123")
@@ -66,11 +90,21 @@ class SessionManagerMigrationTest {
     @Test
     fun roundTripViaDirectRead() = runBlocking {
         val sm = SessionManager(context)
+        if (sm.getStorageMode() is StorageMode.Plaintext) {
+            // Fail-closed: values are discarded, reads return defaults
+            sm.setBaseUrl("https://test.example.com")
+            sm.setUsername("bob")
+            sm.setPassword("hunter2")
+            assertEquals("", sm.baseUrl.first())
+            assertEquals("", sm.username.first())
+            assertEquals("", sm.password.first())
+            return@runBlocking
+        }
         sm.setBaseUrl("https://test.example.com")
         sm.setUsername("bob")
         sm.setPassword("hunter2")
 
-        // The SessionManager uses encrypted prefs (or fallback in tests)
+        // The SessionManager uses encrypted prefs (or no-op in tests)
         // Verify through the SessionManager API
         assertEquals("https://test.example.com", sm.baseUrl.first())
         assertEquals("bob", sm.username.first())
@@ -80,6 +114,14 @@ class SessionManagerMigrationTest {
     @Test
     fun isConfigured_returnsTrueWhenAllFieldsSet() = runBlocking {
         val sm = SessionManager(context)
+        if (sm.getStorageMode() is StorageMode.Plaintext) {
+            // Fail-closed: writes are discarded, so isConfigured() returns false
+            sm.setBaseUrl("https://server.example.com")
+            sm.setUsername("user")
+            sm.setPassword("pass")
+            assertFalse(sm.isConfigured())
+            return@runBlocking
+        }
         sm.setBaseUrl("https://server.example.com")
         sm.setUsername("user")
         sm.setPassword("pass")
@@ -131,6 +173,13 @@ class SessionManagerMigrationTest {
     @Test
     fun setupComplete_flagPersists() = runBlocking {
         val sm = SessionManager(context)
+        if (sm.getStorageMode() is StorageMode.Plaintext) {
+            // Fail-closed: writes are discarded, setupComplete stays at default (false)
+            assertFalse(sm.setupComplete.first())
+            sm.setSetupComplete()
+            assertFalse(sm.setupComplete.first())
+            return@runBlocking
+        }
         assertFalse(sm.setupComplete.first())
         sm.setSetupComplete()
         assertTrue(sm.setupComplete.first())
