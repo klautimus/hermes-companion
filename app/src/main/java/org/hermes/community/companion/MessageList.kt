@@ -56,14 +56,19 @@ fun ChatBubble(message: MainViewModel.ChatMessage) {
                 }
                 // Text content (don't show empty bubble for pure image messages)
                 if (message.content.isNotBlank()) {
-                    Text(
-                        text = buildString {
-                            append(message.content)
-                            if (message.isStreaming) append("\u258C")
-                        },
-                        modifier = Modifier.padding(12.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    if (message.role == "assistant") {
+                        MarkdownText(
+                            markdown = message.content,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    } else {
+                        Text(
+                            text = message.content,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
             }
         }
