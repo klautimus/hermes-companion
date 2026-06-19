@@ -65,7 +65,7 @@ class ModelsTest {
 
     @Test
     fun kanbanBoard_withAllFields() {
-        val raw = """{"slug":"main","name":"Main Board","description":"Primary","counts":{"todo":5,"ready":2,"running":1,"blocked":0,"done":10,"archived":3},"total":21,"archived":false}"""
+        val raw = """{"slug":"main","name":"Main Board","description":"Primary","counts":{"todo":5,"scheduled":3,"ready":2,"running":1,"blocked":0,"review":4,"done":10,"archived":3},"total":21,"archived":false}"""
         val board = json.decodeFromString(KanbanBoard.serializer(), raw)
         assertEquals("main", board.slug)
         assertEquals("Main Board", board.name)
@@ -73,9 +73,11 @@ class ModelsTest {
         assertNotNull(board.counts)
         val counts = board.counts!!
         assertEquals(5, counts.todo)
+        assertEquals(3, counts.scheduled)
         assertEquals(2, counts.ready)
         assertEquals(1, counts.running)
         assertEquals(0, counts.blocked)
+        assertEquals(4, counts.review)
         assertEquals(10, counts.done)
         assertEquals(3, counts.archived)
         assertEquals(21, board.total)
@@ -107,7 +109,7 @@ class ModelsTest {
             slug = "test",
             name = "Test",
             description = "Desc",
-            counts = KanbanCounts(todo = 1, ready = 2, running = 3, blocked = 4, done = 5, archived = 6),
+            counts = KanbanCounts(todo = 1, scheduled = 7, ready = 2, running = 3, blocked = 4, review = 8, done = 5, archived = 6),
             total = 21,
             archived = false
         )
@@ -120,7 +122,7 @@ class ModelsTest {
 
     @Test
     fun kanbanTask_withAllFields() {
-        val raw = """{"id":"t1","title":"Fix bug","status":"running","assignee":"kevin","priority":2,"body":"Details here","created_at":"2024-01-01","updated_at":"2024-01-02"}"""
+        val raw = """{"id":"t1","title":"Fix bug","status":"running","assignee":"kevin","priority":2,"body":"Details here","created_at":1704067200,"updated_at":1704153600}"""
         val task = json.decodeFromString(KanbanTask.serializer(), raw)
         assertEquals("t1", task.id)
         assertEquals("Fix bug", task.title)
@@ -128,8 +130,8 @@ class ModelsTest {
         assertEquals("kevin", task.assignee)
         assertEquals(2, task.priority)
         assertEquals("Details here", task.body)
-        assertEquals("2024-01-01", task.created)
-        assertEquals("2024-01-02", task.updated)
+        assertEquals(1704067200L, task.created)
+        assertEquals(1704153600L, task.updated)
     }
 
     @Test
@@ -165,8 +167,8 @@ class ModelsTest {
             assignee = "ops",
             priority = 3,
             body = "Body text",
-            created = "2024-06-01",
-            updated = "2024-06-14"
+            created = 1717200000,
+            updated = 1718323200
         )
         val encoded = json.encodeToString(KanbanTask.serializer(), original)
         val decoded = json.decodeFromString(KanbanTask.serializer(), encoded)

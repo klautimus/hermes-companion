@@ -17,9 +17,11 @@ data class KanbanBoard(
 data class KanbanCounts(
     val triage: Int = 0,
     val todo: Int = 0,
+    val scheduled: Int = 0,
     val ready: Int = 0,
     val running: Int = 0,
     val blocked: Int = 0,
+    val review: Int = 0,
     val done: Int = 0,
     val archived: Int = 0,
 )

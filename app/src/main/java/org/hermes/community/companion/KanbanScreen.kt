@@ -1040,6 +1040,41 @@ private fun TaskDetailSheet(
                 }
             }
 
+            // ── Metadata Chips ──────────────────────────────────
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    task.age?.createdAgeSeconds?.let { ageSec ->
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(formatAgeSeconds(ageSec)) },
+                            leadingIcon = { Icon(Icons.Filled.Schedule, null, modifier = Modifier.size(14.dp)) }
+                        )
+                    }
+                    task.progress?.let { prog ->
+                        if (prog.total > 0) {
+                            AssistChip(
+                                onClick = {},
+                                label = { Text("${prog.done}/${prog.total} done") },
+                                leadingIcon = { Icon(Icons.Filled.TaskAlt, null, modifier = Modifier.size(14.dp)) }
+                            )
+                        }
+                    }
+                    task.warnings?.forEach { warning ->
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(warning.take(20)) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            ),
+                            leadingIcon = { Icon(Icons.Filled.Warning, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error) }
+                        )
+                    }
+                }
+            }
+
             // ── 2. Editable Body ───────────────────────────────
             item {
                 if (editingBody) {
@@ -1096,10 +1131,13 @@ private fun TaskDetailSheet(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     StatusChip("→ Triage", task.status != "triage") { viewModel.updateTaskStatus(task.id, "triage") }
+                    StatusChip("→ To Do", task.status != "todo") { viewModel.updateTaskStatus(task.id, "todo") }
+                    StatusChip("→ Scheduled", task.status != "scheduled") { viewModel.updateTaskStatus(task.id, "scheduled") }
                     StatusChip("→ Ready", task.status != "ready") { viewModel.updateTaskStatus(task.id, "ready") }
                     StatusChip("→ Running", task.status != "running") { viewModel.updateTaskStatus(task.id, "running") }
                     StatusChip("Block", task.status != "blocked") { showBlockDialog = true }
                     StatusChip("Unblock", task.status == "blocked") { viewModel.updateTaskStatus(task.id, "ready") }
+                    StatusChip("→ Review", task.status != "review") { viewModel.updateTaskStatus(task.id, "review") }
                     StatusChip("Complete", task.status != "done") { viewModel.updateTaskStatus(task.id, "done"); onDismiss() }
                     StatusChip("Archive", task.status != "archived") { viewModel.updateTaskStatus(task.id, "archived"); onDismiss() }
                     StatusChip("Delete", true, isDestructive = true) { showDeleteConfirm = true }
