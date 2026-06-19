@@ -221,3 +221,26 @@ suspend fun redeemSetupToken(baseUrl: String, token: String): Result<RedeemRespo
         }
     }
 }
+
+/**
+ * Register the first user account on a fresh daemon.
+ * This call is UNAUTHENTICATED.
+ */
+suspend fun registerUser(baseUrl: String, username: String, password: String): Boolean = withContext(Dispatchers.IO) {
+    val url = baseUrl.removeSuffix("/") + "/api/setup/register"
+    val jsonBody = """{"username":"$username","password":"$password"}"""
+    val body = jsonBody.toRequestBody("application/json; charset=utf-8".toMediaType())
+    val request = Request.Builder()
+        .url(url)
+        .post(body)
+        .header("Accept", "application/json")
+        .build()
+    val client = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+    client.newCall(request).execute().use { response ->
+        if (response.code == 201) return@use true
+        throw ApiException(response.code, "Registration failed (${response.code})")
+    }
+}

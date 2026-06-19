@@ -168,7 +168,7 @@ fun SetupWizardScreen(
     ) {
         // Progress indicator
         LinearProgressIndicator(
-            progress = { (currentScreen + 1) / 3f },
+            progress = { (currentScreen + 1) / 4f },
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -177,6 +177,7 @@ fun SetupWizardScreen(
                 0 -> "Step 1: Server Connection"
                 1 -> "Step 2: Credentials"
                 2 -> "Step 3: Board Selection"
+                3 -> "Step 3: Create Account"
                 else -> ""
             },
             style = MaterialTheme.typography.headlineSmall,
@@ -194,7 +195,8 @@ fun SetupWizardScreen(
             )
             1 -> CredentialsScreen(
                 config = config,
-                onConfigChange = { config = it }
+                onConfigChange = { config = it },
+                onCreateAccount = { currentScreen = 3 }
             )
             2 -> BoardSelectionScreen(
                 config = config,
@@ -205,6 +207,14 @@ fun SetupWizardScreen(
                 onCreateBoardNameChange = { createBoardName = it },
                 showCreateBoardDialog = showCreateBoardDialog,
                 onShowCreateBoardDialog = { showCreateBoardDialog = it }
+            )
+            3 -> CreateAccountScreen(
+                serverUrl = config.serverUrl,
+                onAccountCreated = { username, password ->
+                    config = config.copy(username = username, password = password)
+                    currentScreen = 2
+                },
+                onBack = { currentScreen = 1 }
             )
         }
 
@@ -319,6 +329,92 @@ private fun parseQrUri(uriString: String): WizardConfig? {
 }
 
 @Composable
+fun CreateAccountScreen(
+    serverUrl: String,
+    onAccountCreated: (username: String, password: String) -> Unit,
+    onBack: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Create Your Account", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "This server has no users yet. Create the first admin account.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        OutlinedTextField(
+            value = username,
+            onValueChange = { username = it },
+            label = { Text("Username (min 3 chars)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Password (min 8 chars)") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+        )
+        OutlinedTextField(
+            value = confirmPassword,
+            onValueChange = { confirmPassword = it },
+            label = { Text("Confirm Password") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+        )
+
+        error?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+
+        Button(
+            onClick = {
+                scope.launch {
+                    loading = true
+                    error = null
+                    try {
+                        if (password != confirmPassword) {
+                            error = "Passwords do not match"
+                            return@launch
+                        }
+                        org.hermes.community.companion.data.registerUser(serverUrl, username, password)
+                        onAccountCreated(username, password)
+                    } catch (e: Exception) {
+                        error = e.message
+                    } finally {
+                        loading = false
+                    }
+                }
+            },
+            enabled = username.length >= 3 && password.length >= 8 &&
+                      password == confirmPassword && !loading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (loading) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                Text("Create Account")
+            }
+        }
+
+        TextButton(onClick = onBack) { Text("Back") }
+    }
+}
+
+@Composable
 private fun ServerConnectionScreen(
     config: WizardConfig,
     onConfigChange: (WizardConfig) -> Unit,
@@ -402,7 +498,8 @@ private fun ServerConnectionScreen(
 @Composable
 private fun CredentialsScreen(
     config: WizardConfig,
-    onConfigChange: (WizardConfig) -> Unit
+    onConfigChange: (WizardConfig) -> Unit,
+    onCreateAccount: (() -> Unit)? = null
 ) {
     var passVisible by remember { mutableStateOf(false) }
 
@@ -432,6 +529,21 @@ private fun CredentialsScreen(
                 }
             }
         )
+
+        if (onCreateAccount != null) {
+            HorizontalDivider()
+            Text(
+                "No account yet?",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedButton(
+                onClick = onCreateAccount,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Create Account on This Server")
+            }
+        }
     }
 }
 
