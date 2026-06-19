@@ -223,6 +223,30 @@ suspend fun redeemSetupToken(baseUrl: String, token: String): Result<RedeemRespo
 }
 
 /**
+ * Check server health WITHOUT authentication.
+ * Used by the setup wizard to test connectivity before credentials are known.
+ */
+suspend fun checkServerHealth(baseUrl: String): CompanionHealth = withContext(Dispatchers.IO) {
+    val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .build()
+    val request = Request.Builder()
+        .url("${baseUrl.removeSuffix("/")}/health")
+        .header("Accept", "application/json")
+        .build()
+
+    client.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) {
+            throw ApiException(response.code, "Server returned ${response.code}")
+        }
+        val body = response.body?.string() ?: throw ApiException(0, "Empty response")
+        val json = Json { ignoreUnknownKeys = true }
+        json.decodeFromString<CompanionHealth>(body)
+    }
+}
+
+/**
  * Register the first user account on a fresh daemon.
  * This call is UNAUTHENTICATED.
  */

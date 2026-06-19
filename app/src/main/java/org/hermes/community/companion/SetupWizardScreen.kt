@@ -18,6 +18,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.hermes.community.companion.data.ApiClient
+import org.hermes.community.companion.data.checkServerHealth
 import org.hermes.community.companion.data.SessionManager
 import org.hermes.community.companion.data.StorageMode
 import kotlinx.coroutines.launch
@@ -462,10 +463,7 @@ private fun ServerConnectionScreen(
                     onLoadingChange(true)
                     onTestResult("Testing...", false)
                     try {
-                        val c = ApiClient(config.serverUrl, "test", "test")
-                        val raw = c.get("/health")
-                        val health = Json { ignoreUnknownKeys = true }
-                            .decodeFromString<org.hermes.community.companion.data.CompanionHealth>(raw)
+                        val health = checkServerHealth(config.serverUrl)
                         onTestResult(
                             "Connected ✓ (hermes_api=${if (health.hermesReachable) "up" else "down"})",
                             health.hermesReachable
