@@ -283,6 +283,41 @@ class ApiClient(
                 client.newCall(req).enqueue(reusableCont(cont))
             }
         }
+
+    // ── Email 2FA ──────────────────────────────────────────
+
+    /**
+     * Check whether the current user requires 2FA after login.
+     * Response JSON: { "requires_2fa": true, "challenge_id": "abc123" } or { "requires_2fa": false }
+     */
+    suspend fun check2fa(): String = post("/api/auth/2fa/check")
+
+    /**
+     * Verify a 2FA OTP code against a challenge.
+     * @param challengeId  the challenge_id from check2fa
+     * @param code         the 6-digit OTP code from email
+     */
+    suspend fun verify2fa(challengeId: String, code: String): String =
+        post("/api/auth/2fa/verify", """{"challenge_id":"$challengeId","code":"$code"}""")
+
+    /**
+     * Resend the 2FA OTP email for a given challenge.
+     * @param challengeId  the challenge_id from check2fa
+     */
+    suspend fun resend2fa(challengeId: String): String =
+        post("/api/auth/2fa/resend", """{"challenge_id":"$challengeId"}""")
+
+    /**
+     * Enable email 2FA for the current user.
+     */
+    suspend fun setup2fa(): String = post("/api/auth/2fa/setup")
+
+    /**
+     * Disable email 2FA for the current user.
+     * @param code  the 6-digit OTP code to confirm identity
+     */
+    suspend fun disable2fa(code: String): String =
+        post("/api/auth/2fa/disable", """{"code":"$code"}""")
 }
 
 class ApiException(val code: Int, override val message: String) : Exception(message)

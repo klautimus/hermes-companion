@@ -18,6 +18,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.hermes.community.companion.data.ApiClient
+import org.hermes.community.companion.data.ApiException
 import org.hermes.community.companion.data.checkServerHealth
 import org.hermes.community.companion.data.SessionManager
 import org.hermes.community.companion.data.StorageMode
@@ -54,6 +55,7 @@ fun SetupWizardScreen(
     var createBoardName by remember { mutableStateOf("") }
     var showCreateBoardDialog by remember { mutableStateOf(false) }
     var showQrScanner by remember { mutableStateOf(false) }
+    var pending2fa by remember { mutableStateOf(false) }
 
     // Handle deep link data
     val deepLinkData = viewModel.deepLinkConfig.value
@@ -166,7 +168,7 @@ fun SetupWizardScreen(
     ) {
         // Progress indicator
         LinearProgressIndicator(
-            progress = { (currentScreen + 1) / 4f },
+            progress = { (currentScreen + 1) / 5f },
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -174,8 +176,9 @@ fun SetupWizardScreen(
             when (currentScreen) {
                 0 -> "Step 1: Server Connection"
                 1 -> "Step 2: Credentials"
-                2 -> "Step 3: Board Selection"
-                3 -> "Step 3: Create Account"
+                2 -> if (pending2fa) "Step 3: Two-Factor Authentication" else "Step 3: Board Selection"
+                3 -> "Step 3: Board Selection"
+                4 -> "Step 3: Create Account"
                 else -> ""
             },
             style = MaterialTheme.typography.headlineSmall,
@@ -195,9 +198,37 @@ fun SetupWizardScreen(
             1 -> CredentialsScreen(
                 config = config,
                 onConfigChange = { config = it },
-                onCreateAccount = { currentScreen = 3 }
+                onCreateAccount = { currentScreen = 4 }
             )
-            2 -> BoardSelectionScreen(
+            2 -> {
+                if (pending2fa) {
+                    TwoFactorScreen(
+                        serverUrl = config.serverUrl,
+                        username = config.username,
+                        password = config.password,
+                        onVerified = {
+                            pending2fa = false
+                            currentScreen = 3
+                        },
+                        onBack = {
+                            pending2fa = false
+                            currentScreen = 1
+                        }
+                    )
+                } else {
+                    BoardSelectionScreen(
+                        config = config,
+                        onConfigChange = { config = it },
+                        boards = boards,
+                        viewModel = viewModel,
+                        createBoardName = createBoardName,
+                        onCreateBoardNameChange = { createBoardName = it },
+                        showCreateBoardDialog = showCreateBoardDialog,
+                        onShowCreateBoardDialog = { showCreateBoardDialog = it }
+                    )
+                }
+            }
+            3 -> BoardSelectionScreen(
                 config = config,
                 onConfigChange = { config = it },
                 boards = boards,
@@ -207,11 +238,11 @@ fun SetupWizardScreen(
                 showCreateBoardDialog = showCreateBoardDialog,
                 onShowCreateBoardDialog = { showCreateBoardDialog = it }
             )
-            3 -> CreateAccountScreen(
+            4 -> CreateAccountScreen(
                 serverUrl = config.serverUrl,
                 onAccountCreated = { username, password ->
                     config = config.copy(username = username, password = password)
-                    currentScreen = 2
+                    currentScreen = 3
                 },
                 onBack = { currentScreen = 1 }
             )
@@ -265,15 +296,16 @@ fun SetupWizardScreen(
                                 isLoading = true
                                 try {
                                     val c = ApiClient(config.serverUrl, config.username, config.password)
-                                    val raw = c.get("/api/kanban/boards")
+                                    val raw = c.check2fa()
                                     val json = Json { ignoreUnknownKeys = true }
-                                    val boardsList = json.parseToJsonElement(raw).jsonArray
-                                    boards = boardsList.map {
-                                        it.jsonObject["slug"]?.jsonPrimitive?.content ?: ""
-                                    }
-                                    currentScreen++
+                                    val obj = json.parseToJsonElement(raw).jsonObject
+                                    val requires2fa = obj["requires_2fa"]?.jsonPrimitive?.content?.toBoolean() ?: false
+                                    pending2fa = requires2fa
+                                    currentScreen = if (requires2fa) 2 else 3
                                 } catch (e: Exception) {
-                                    currentScreen++
+                                    // If check2fa fails (e.g. endpoint doesn't exist), proceed without 2FA
+                                    pending2fa = false
+                                    currentScreen = 3
                                 } finally {
                                     isLoading = false
                                 }
@@ -285,6 +317,29 @@ fun SetupWizardScreen(
                     }
                 }
                 2 -> {
+                    // 2FA screen or BoardSelection — no Next button here
+                    // (2FA screen has its own buttons, BoardSelection is screen 3)
+                    if (!pending2fa) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    sessionManager.setBaseUrl(config.serverUrl)
+                                    sessionManager.setUsername(config.username)
+                                    sessionManager.setPassword(config.password)
+                                    sessionManager.setBoard(config.board)
+                                    sessionManager.setSetupComplete()
+                                    onSetupComplete()
+                                }
+                            },
+                            enabled = config.board.isNotBlank()
+                        ) {
+                            Text("Finish")
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(1.dp))
+                    }
+                }
+                3 -> {
                     Button(
                         onClick = {
                             scope.launch {
@@ -561,6 +616,138 @@ private fun CredentialsScreen(
                 Text("Create Account on This Server")
             }
         }
+    }
+}
+
+@Composable
+private fun TwoFactorScreen(
+    serverUrl: String,
+    username: String,
+    password: String,
+    onVerified: () -> Unit,
+    onBack: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var code by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var resendCooldown by remember { mutableIntStateOf(0) }
+
+    // Resend cooldown timer
+    LaunchedEffect(resendCooldown) {
+        if (resendCooldown > 0) {
+            kotlinx.coroutines.delay(1000)
+            resendCooldown--
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            "Two-Factor Authentication",
+            style = MaterialTheme.typography.headlineSmall
+        )
+        Text(
+            "Enter the 6-digit code sent to your email.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        // OTP input — single text field, numeric, max 6 chars
+        OutlinedTextField(
+            value = code,
+            onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) code = it },
+            label = { Text("6-digit code") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            isError = error != null,
+            supportingText = if (error != null) {
+                { Text(error!!, color = MaterialTheme.colorScheme.error) }
+            } else null
+        )
+
+        // Submit button
+        Button(
+            onClick = {
+                if (code.length != 6) {
+                    error = "Please enter a 6-digit code"
+                    return@Button
+                }
+                scope.launch {
+                    isLoading = true
+                    error = null
+                    try {
+                        val c = ApiClient(serverUrl, username, password)
+                        // First check if 2FA is required (establishes challenge)
+                        val checkResult = c.check2fa()
+                        val json = Json { ignoreUnknownKeys = true }
+                        val obj = json.parseToJsonElement(checkResult).jsonObject
+                        val requires2fa = obj["requires_2fa"]?.jsonPrimitive?.content?.toBoolean() ?: false
+                        if (!requires2fa) {
+                            // 2FA not enabled, proceed
+                            onVerified()
+                            return@launch
+                        }
+                        val challengeId = obj["challenge_id"]?.jsonPrimitive?.content ?: ""
+                        // Verify the code
+                        c.verify2fa(challengeId, code)
+                        onVerified()
+                    } catch (e: ApiException) {
+                        error = e.message
+                        code = ""
+                    } catch (e: Exception) {
+                        error = "Verification failed: ${e.message}"
+                        code = ""
+                    } finally {
+                        isLoading = false
+                    }
+                }
+            },
+            enabled = code.length == 6 && !isLoading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            Text("Verify")
+        }
+
+        // Resend button
+        OutlinedButton(
+            onClick = {
+                scope.launch {
+                    isLoading = true
+                    error = null
+                    try {
+                        val c = ApiClient(serverUrl, username, password)
+                        val checkResult = c.check2fa()
+                        val json = Json { ignoreUnknownKeys = true }
+                        val obj = json.parseToJsonElement(checkResult).jsonObject
+                        val challengeId = obj["challenge_id"]?.jsonPrimitive?.content ?: ""
+                        c.resend2fa(challengeId)
+                        resendCooldown = 30
+                        error = null
+                    } catch (e: Exception) {
+                        error = "Resend failed: ${e.message}"
+                    } finally {
+                        isLoading = false
+                    }
+                }
+            },
+            enabled = resendCooldown == 0 && !isLoading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                if (resendCooldown > 0) "Resend code (${resendCooldown}s)"
+                else "Resend code"
+            )
+        }
+
+        TextButton(onClick = onBack) { Text("Back") }
     }
 }
 

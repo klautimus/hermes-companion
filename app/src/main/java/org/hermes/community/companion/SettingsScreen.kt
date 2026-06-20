@@ -211,6 +211,144 @@ fun SettingsScreen(modifier: Modifier = Modifier, viewModel: MainViewModel, onRe
 
         Divider()
 
+        Text("Security", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error)
+
+        // 2FA section
+        var show2faSetupDialog by remember { mutableStateOf(false) }
+        var show2faDisableDialog by remember { mutableStateOf(false) }
+
+        OutlinedButton(
+            onClick = { show2faSetupDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Enable Email 2FA")
+        }
+
+        OutlinedButton(
+            onClick = { show2faDisableDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Disable 2FA")
+        }
+
+        // 2FA Setup dialog
+        if (show2faSetupDialog) {
+            var setupCode by remember { mutableStateOf("") }
+            var setupError by remember { mutableStateOf<String?>(null) }
+            var setupLoading by remember { mutableStateOf(false) }
+
+            AlertDialog(
+                onDismissRequest = { show2faSetupDialog = false },
+                title = { Text("Enable Email 2FA") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("This will enable email-based two-factor authentication. You'll receive a code via email each time you log in.",
+                            style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(
+                            value = setupCode,
+                            onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) setupCode = it },
+                            label = { Text("Enter current 6-digit code to confirm") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            isError = setupError != null,
+                            supportingText = if (setupError != null) {
+                                { Text(setupError!!, color = MaterialTheme.colorScheme.error) }
+                            } else null
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                setupLoading = true
+                                setupError = null
+                                try {
+                                    val c = ApiClient(urlInput, userInput, passInput)
+                                    c.setup2fa()
+                                    show2faSetupDialog = false
+                                    testResult = "2FA enabled"
+                                    testOk = true
+                                } catch (e: Exception) {
+                                    setupError = e.message
+                                } finally {
+                                    setupLoading = false
+                                }
+                            }
+                        },
+                        enabled = setupCode.length == 6 && !setupLoading
+                    ) { Text("Enable") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { show2faSetupDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
+
+        // 2FA Disable dialog
+        if (show2faDisableDialog) {
+            var disableCode by remember { mutableStateOf("") }
+            var disableError by remember { mutableStateOf<String?>(null) }
+            var disableLoading by remember { mutableStateOf(false) }
+
+            AlertDialog(
+                onDismissRequest = { show2faDisableDialog = false },
+                title = { Text("Disable Email 2FA") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Enter your current 2FA code to disable email authentication.",
+                            style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(
+                            value = disableCode,
+                            onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) disableCode = it },
+                            label = { Text("6-digit code") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            isError = disableError != null,
+                            supportingText = if (disableError != null) {
+                                { Text(disableError!!, color = MaterialTheme.colorScheme.error) }
+                            } else null
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                disableLoading = true
+                                disableError = null
+                                try {
+                                    val c = ApiClient(urlInput, userInput, passInput)
+                                    c.disable2fa(disableCode)
+                                    show2faDisableDialog = false
+                                    testResult = "2FA disabled"
+                                    testOk = true
+                                } catch (e: Exception) {
+                                    disableError = e.message
+                                } finally {
+                                    disableLoading = false
+                                }
+                            }
+                        },
+                        enabled = disableCode.length == 6 && !disableLoading
+                    ) { Text("Disable") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { show2faDisableDialog = false }) { Text("Cancel") }
+                }
+            )
+        }
+
+        Text(
+            "Enable email-based two-factor authentication for additional security.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Divider()
+
         Text("Setup", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.tertiary)
 
         OutlinedButton(
