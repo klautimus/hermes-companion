@@ -162,7 +162,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Send a message in the active session using non-streaming chat. */
+    /** Send a message in the active session using SSE streaming chat. */
     fun sendMessage(content: String) {
         val c = client() ?: return
         _chatError.value = null
@@ -201,9 +201,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .map { mapOf("role" to it.role, "content" to it.content) }
 
             try {
-                val reply = c.chat(history)
+                c.chatStream(
+                    messages = history,
+                    sessionId = sid,
+                    onChunk = { delta ->
+                        // Append delta to the streaming assistant message
+                        _chatMessages.value = _chatMessages.value.map { msg ->
+                            if (msg.messageId == msgId && msg.isStreaming) {
+                                msg.copy(content = msg.content + delta)
+                            } else {
+                                msg
+                            }
+                        }
+                    },
+                )
                 _isStreaming.value = false
-                finalizeAssistant(msgId, reply)
+                // Finalize: ensure the message is marked non-streaming
+                finalizeAssistant(msgId, _chatMessages.value
+                    .firstOrNull { it.messageId == msgId }?.content ?: "")
             } catch (e: Exception) {
                 _chatError.value = e.message
                 _isStreaming.value = false

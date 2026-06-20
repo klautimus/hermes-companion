@@ -164,6 +164,105 @@ class ApiClient(
             })
         }
     }
+    // ── Chat: SSE streaming ──────────────────────────────────
+
+    /**
+     * Stream a chat completion via SSE.
+     *
+     * Opens a connection to `/v1/chat/completions/stream` and reads the
+     * response line-by-line, parsing SSE `data:` lines.  Each content
+     * delta is delivered via [onChunk].  The callback runs on the
+     * calling coroutine context (typically Dispatchers.Main via
+     * viewModelScope).
+     *
+     * @param messages  chat history as list of {role, content} maps
+     * @param sessionId optional session id for attachment tracking
+     * @param attachmentIds optional attachment ids
+     * @param onChunk   callback invoked for each content delta string
+     * @return the full accumulated assistant response text
+     */
+    suspend fun chatStream(
+        messages: List<Map<String, String>>,
+        sessionId: String? = null,
+        attachmentIds: List<String>? = null,
+        onChunk: (String) -> Unit,
+    ): String = withContext(Dispatchers.IO) {
+        val msgArray = kotlinx.serialization.json.JsonArray(
+            messages.map { msg ->
+                kotlinx.serialization.json.JsonObject(mapOf(
+                    "role" to kotlinx.serialization.json.JsonPrimitive(msg["role"] ?: "user"),
+                    "content" to kotlinx.serialization.json.JsonPrimitive(msg["content"] ?: ""),
+                ))
+            }
+        )
+        val payloadBuilder = mutableMapOf<String, kotlinx.serialization.json.JsonElement>(
+            "model" to kotlinx.serialization.json.JsonPrimitive("hermes-agent"),
+            "messages" to msgArray,
+            "stream" to kotlinx.serialization.json.JsonPrimitive(true),
+        )
+        if (sessionId != null) {
+            payloadBuilder["session_id"] = kotlinx.serialization.json.JsonPrimitive(sessionId)
+        }
+        if (attachmentIds != null && attachmentIds.isNotEmpty()) {
+            payloadBuilder["attachment_ids"] = kotlinx.serialization.json.JsonArray(
+                attachmentIds.map { kotlinx.serialization.json.JsonPrimitive(it) }
+            )
+        }
+        val payloadObj = kotlinx.serialization.json.JsonObject(payloadBuilder)
+        val payload = payloadObj.toString()
+
+        val req = Request.Builder()
+            .url("$baseUrl/v1/chat/completions/stream")
+            .header("Authorization", authHeader)
+            .header("Accept", "text/event-stream")
+            .method("POST", payload.toRequestBody(jsonMediaType))
+            .build()
+
+        // Use a dedicated client with a long read timeout for streaming
+        val streamClient = client.newBuilder()
+            .readTimeout(5, TimeUnit.MINUTES)
+            .build()
+
+        val response = streamClient.newCall(req).execute()
+        if (!response.isSuccessful) {
+            val errBody = response.body?.string() ?: ""
+            throw ApiException(response.code, parseErr(errBody).ifEmpty { "Stream request failed" })
+        }
+
+        val body = response.body ?: throw ApiException(0, "Empty stream response")
+        val source = body.source()
+        val fullText = StringBuilder()
+
+        while (!source.exhausted()) {
+            val line = source.readUtf8Line() ?: break
+            if (!line.startsWith("data: ")) continue
+            val data = line.removePrefix("data: ").trim()
+            if (data == "[DONE]") break
+            if (data.isEmpty()) continue
+            try {
+                val obj = json.parseToJsonElement(data).jsonObject
+                val choices = obj["choices"]?.jsonArray ?: continue
+                for (choice in choices) {
+                    val delta = choice.jsonObject["delta"]?.jsonObject ?: continue
+                    val content = delta["content"]?.jsonPrimitive?.content ?: continue
+                    if (content.isNotEmpty()) {
+                        fullText.append(content)
+                        // Deliver chunk on the main dispatcher
+                        withContext(Dispatchers.Main) {
+                            onChunk(content)
+                        }
+                    }
+                    // Check for finish_reason
+                    val finishReason = choice.jsonObject["finish_reason"]?.jsonPrimitive?.content
+                    if (finishReason != null && finishReason != "null") break
+                }
+            } catch (_: Exception) {
+                // Skip malformed SSE lines
+            }
+        }
+        fullText.toString()
+    }
+
     // ── Attachments: multipart upload ───────────────────────
 
     /** Upload a file via multipart POST /api/attachments. Returns JSON response. */

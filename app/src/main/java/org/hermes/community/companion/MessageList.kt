@@ -1,20 +1,24 @@
 package org.hermes.community.companion
 
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
 import coil.compose.AsyncImage
 
 @Composable
@@ -55,13 +59,22 @@ fun ChatBubble(message: MainViewModel.ChatMessage) {
                     )
                 }
                 // Text content (don't show empty bubble for pure image messages)
-                if (message.content.isNotBlank()) {
+                if (message.content.isNotBlank() || message.isStreaming) {
                     if (message.role == "assistant") {
-                        MarkdownText(
-                            markdown = message.content,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(12.dp)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            MarkdownText(
+                                markdown = message.content,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier
+                                    .padding(start = 12.dp, end = if (message.isStreaming) 0.dp else 12.dp, top = 12.dp, bottom = 12.dp)
+                                    .weight(1f, fill = false),
+                            )
+                            if (message.isStreaming) {
+                                StreamingCursor(
+                                    modifier = Modifier.padding(end = 4.dp)
+                                )
+                            }
+                        }
                     } else {
                         Text(
                             text = message.content,
@@ -121,4 +134,31 @@ fun MessageList(
             ChatBubble(message = msg)
         }
     }
+}
+
+
+/**
+ * A simple blinking cursor shown at the end of an assistant message
+ * while the response is still streaming.
+ */
+@Composable
+fun StreamingCursor(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "cursor-blink")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "cursor-alpha",
+    )
+    Box(
+        modifier = modifier
+            .width(2.dp)
+            .height(16.dp)
+            .alpha(alpha)
+            .clip(RoundedCornerShape(1.dp))
+            .background(MaterialTheme.colorScheme.onSurfaceVariant)
+    )
 }
