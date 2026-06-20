@@ -26,20 +26,23 @@ import java.io.File
 @Composable
 fun Composer(
     onSendText: (String) -> Unit,
-    onSendAttachment: (String, ByteArray, String) -> Unit,
+    onSendAttachment: (String, ByteArray, String, String) -> Unit,
     enabled: Boolean,
     modifier: Modifier = Modifier,
     onClear: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var input by remember { mutableStateOf("") }
-    var pendingImage by remember { mutableStateOf<Pair<ByteArray, Uri>?>(null) }
+    var pendingImage by remember { mutableStateOf<Triple<ByteArray, Uri, String>?>(null) }
 
     // Gallery / photo picker
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { compressImage(context, it)?.let { bytes -> pendingImage = bytes to it } }
+        uri?.let {
+            val name = getFileName(context, it) ?: "image.jpg"
+            compressImage(context, it)?.let { bytes -> pendingImage = Triple(bytes, it, name) }
+        }
     }
 
     // Camera capture
@@ -48,7 +51,8 @@ fun Composer(
         ActivityResultContracts.TakePicture()
     ) { success ->
         if (success) cameraUri?.let { uri ->
-            compressImage(context, uri)?.let { bytes -> pendingImage = bytes to uri }
+            val name = getFileName(context, uri) ?: "camera_${System.currentTimeMillis()}.jpg"
+            compressImage(context, uri)?.let { bytes -> pendingImage = Triple(bytes, uri, name) }
         }
     }
 
@@ -56,9 +60,10 @@ fun Composer(
     val filePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { readFileBytes(context, it)?.let { bytes ->
-            pendingImage = bytes to it
-        }}
+        uri?.let {
+            val name = getFileName(context, it) ?: "file_${System.currentTimeMillis()}"
+            readFileBytes(context, it)?.let { bytes -> pendingImage = Triple(bytes, it, name) }
+        }
     }
 
     var showPickerMenu by remember { mutableStateOf(false) }
@@ -70,7 +75,7 @@ fun Composer(
     ) {
         Column {
             // Pending image preview
-            pendingImage?.let { (bytes, _) ->
+            pendingImage?.let { (bytes, _, _) ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -160,7 +165,8 @@ fun Composer(
                         if (text.isNotBlank() || image != null) {
                             if (enabled) {
                                 if (image != null) {
-                                    onSendAttachment(text, image.first, "image/jpeg")
+                                    val mime = guessMime(image.third)
+                                    onSendAttachment(text, image.first, mime, image.third)
                                 } else {
                                     onSendText(text)
                                 }
@@ -226,5 +232,35 @@ private fun readFileBytes(context: Context, uri: Uri): ByteArray? {
     } catch (e: Exception) {
         android.util.Log.e("Composer", "Failed to read file", e)
         null
+    }
+}
+
+/** Extract a display name from a content URI. */
+private fun getFileName(context: Context, uri: Uri): String? {
+    return try {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIdx >= 0 && cursor.moveToFirst()) cursor.getString(nameIdx) else null
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/** Guess MIME type from filename extension. */
+private fun guessMime(fileName: String): String {
+    val ext = fileName.substringAfterLast('.', "").lowercase()
+    return when (ext) {
+        "jpg", "jpeg" -> "image/jpeg"
+        "png" -> "image/png"
+        "gif" -> "image/gif"
+        "webp" -> "image/webp"
+        "pdf" -> "application/pdf"
+        "txt" -> "text/plain"
+        "html", "htm" -> "text/html"
+        "json" -> "application/json"
+        "mp4" -> "video/mp4"
+        "mp3" -> "audio/mpeg"
+        else -> "application/octet-stream"
     }
 }

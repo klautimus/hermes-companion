@@ -24,7 +24,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // Settings (persisted in DataStore)
     private val _password = MutableStateFlow(SessionManager.DEFAULT_PASSWORD)
-    init { viewModelScope.launch { session.password.collect { _password.value = it } } }
+    init {
+        viewModelScope.launch {
+            session.password.collect { _password.value = it }
+        }
+        // Keep the Application's auth credentials in sync with settings
+        val app = app as? CompanionApp
+        if (app != null) {
+            viewModelScope.launch {
+                combine(session.baseUrl, session.username, session.password) { u, user, pass ->
+                    app.setAuth(user, pass, u)
+                }.collect {}
+            }
+        }
+    }
 
     val baseUrl = session.baseUrl.stateIn(viewModelScope, SharingStarted.Eagerly, SessionManager.DEFAULT_URL)
     val username = session.username.stateIn(viewModelScope, SharingStarted.Eagerly, SessionManager.DEFAULT_USERNAME)
@@ -228,13 +241,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Send a message with an attached image in the active session. */
-    fun sendMessageWithAttachment(content: String, imageBytes: ByteArray, mimeType: String) {
+    fun sendMessageWithAttachment(content: String, imageBytes: ByteArray, mimeType: String, fileName: String = "image.jpg") {
         val c = client() ?: return
         _chatError.value = null
         viewModelScope.launch {
             try {
                 // Upload attachment first
-                val upResp = c.uploadAttachment(imageBytes, "image.jpg", mimeType)
+                val upResp = c.uploadAttachment(imageBytes, fileName, mimeType)
                 val attJson = json.parseToJsonElement(upResp).jsonObject
                 val attId = attJson["id"]?.jsonPrimitive?.content ?: return@launch
                 val attUrl = "${baseUrl.value}/api/attachments/$attId"

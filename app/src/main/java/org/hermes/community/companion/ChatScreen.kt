@@ -97,7 +97,7 @@ fun ChatScreen(modifier: Modifier = Modifier, viewModel: MainViewModel) {
         // Composer pinned to bottom
         Composer(
             onSendText = { text -> vm.sendMessage(text) },
-            onSendAttachment = { text, bytes, mime -> vm.sendMessageWithAttachment(text, bytes, mime) },
+            onSendAttachment = { text, bytes, mime, name -> vm.sendMessageWithAttachment(text, bytes, mime, name) },
             enabled = !isStreaming,
             modifier = Modifier.fillMaxWidth(),
             onClear = { vm.clearInput() },

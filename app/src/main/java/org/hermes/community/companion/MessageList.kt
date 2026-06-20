@@ -8,7 +8,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,17 +48,48 @@ fun ChatBubble(message: MainViewModel.ChatMessage) {
             modifier = Modifier.widthIn(max = 320.dp),
         ) {
             Column {
-                // Inline attachment image
+                // Inline attachment display
                 message.attachmentUrl?.let { url ->
-                    AsyncImage(
-                        model = url,
-                        contentDescription = "Attached image",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 256.dp)
-                            .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
-                        contentScale = ContentScale.FillWidth,
-                    )
+                    val isImage = message.attachmentMeta?.mimeType?.startsWith("image/") == true
+                    if (isImage) {
+                        AsyncImage(
+                            model = url,
+                            contentDescription = "Attached image",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 256.dp)
+                                .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                            contentScale = ContentScale.FillWidth,
+                        )
+                    } else {
+                        // Non-image: show filename + download icon
+                        val filename = message.attachmentMeta?.let { url.substringAfterLast("/") } ?: "attachment"
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Filled.AttachFile,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = filename,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(onClick = { /* download handled by Coil */ }) {
+                                Icon(
+                                    Icons.Filled.Download,
+                                    contentDescription = "Download",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
                 }
                 // Text content (don't show empty bubble for pure image messages)
                 if (message.content.isNotBlank() || message.isStreaming) {
