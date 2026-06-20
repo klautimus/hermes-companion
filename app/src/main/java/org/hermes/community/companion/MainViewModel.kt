@@ -146,8 +146,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val c = client() ?: return emptyList()
         return try {
             val raw = c.get("/api/sessions/$sessionId/messages")
-            json.decodeFromString<SessionMessages>(raw).data.map { m ->
-                ChatMessage(m.role, m.content, sessionId = sessionId)
+            val sessionMsgs = json.decodeFromString<SessionMessages>(raw)
+            // Build a map of attachment URL by index for quick lookup
+            sessionMsgs.data.map { m ->
+                ChatMessage(
+                    role = m.role,
+                    content = m.content,
+                    sessionId = sessionId,
+                    attachmentUrl = m.attachmentUrl,
+                )
             }
         } catch (e: Exception) {
             _chatError.value = "History load failed: ${e.message}"
@@ -250,7 +257,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     .map { mapOf("role" to it.role, "content" to it.content) }
 
                 try {
-                    val reply = c.chat(history)
+                    val reply = c.chat(history, sessionId = sid, attachmentIds = listOf(attId))
                     _isStreaming.value = false
                     finalizeAssistant(msgId, reply)
                 } catch (e: Exception) {

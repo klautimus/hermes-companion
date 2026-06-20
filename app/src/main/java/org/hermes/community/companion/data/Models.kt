@@ -175,11 +175,19 @@ data class HermesChatMessage(
     val role: String = "",
     val content: String = "",
     val at: Double? = null,
+    @SerialName("attachment_url") val attachmentUrl: String? = null,
 )
 
 @Serializable
 data class SessionMessages(
     val data: List<HermesChatMessage> = emptyList(),
+    val attachments: List<AttachmentRef> = emptyList(),
+)
+
+@Serializable
+data class AttachmentRef(
+    val id: String = "",
+    val url: String = "",
 )
 
 @Serializable

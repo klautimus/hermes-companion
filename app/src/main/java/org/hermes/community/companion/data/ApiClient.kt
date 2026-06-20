@@ -109,7 +109,11 @@ class ApiClient(
     // ── Chat: non-streaming ────────────────────────────────
 
     /** Send chat completion, returns full response text. */
-    suspend fun chat(messages: List<Map<String, String>>): String = withContext(Dispatchers.IO) {
+    suspend fun chat(
+        messages: List<Map<String, String>>,
+        sessionId: String? = null,
+        attachmentIds: List<String>? = null,
+    ): String = withContext(Dispatchers.IO) {
         // Build payload with kotlinx.serialization.json (proper escaping)
         val msgArray = kotlinx.serialization.json.JsonArray(
             messages.map { msg ->
@@ -119,11 +123,20 @@ class ApiClient(
                 ))
             }
         )
-        val payloadObj = kotlinx.serialization.json.JsonObject(mapOf(
+        val payloadBuilder = mutableMapOf<String, kotlinx.serialization.json.JsonElement>(
             "model" to kotlinx.serialization.json.JsonPrimitive("hermes-agent"),
             "messages" to msgArray,
             "stream" to kotlinx.serialization.json.JsonPrimitive(false),
-        ))
+        )
+        if (sessionId != null) {
+            payloadBuilder["session_id"] = kotlinx.serialization.json.JsonPrimitive(sessionId)
+        }
+        if (attachmentIds != null && attachmentIds.isNotEmpty()) {
+            payloadBuilder["attachment_ids"] = kotlinx.serialization.json.JsonArray(
+                attachmentIds.map { kotlinx.serialization.json.JsonPrimitive(it) }
+            )
+        }
+        val payloadObj = kotlinx.serialization.json.JsonObject(payloadBuilder)
         val payload = payloadObj.toString()
 
         suspendCoroutine { cont ->
