@@ -83,6 +83,14 @@ dependencies {
     implementation 'io.noties.markwon:ext-tables:4.6.2'
     implementation 'io.noties.markwon:ext-tasklist:4.6.2'
     implementation 'io.noties.markwon:linkify:4.6.2'
+    implementation 'io.noties.markwon:syntax-highlight:4.6.2'
+    implementation('io.noties:prism4j:2.0.0') {
+        exclude group: 'org.jetbrains', module: 'annotations-java5'
+    }
+    // Exclude annotations-java5 from all transitive dependencies (conflicts with annotations:23.0.0)
+    configurations.all {
+        exclude group: 'org.jetbrains', module: 'annotations-java5'
+    }
 
     // JSON
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
