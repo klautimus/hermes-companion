@@ -22,6 +22,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
 
 @Composable
 fun ChatBubble(message: MainViewModel.ChatMessage) {
@@ -70,6 +73,8 @@ fun ChatBubble(message: MainViewModel.ChatMessage) {
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            val context = LocalContext.current
+                            val url = message.attachmentUrl!!
                             Icon(
                                 Icons.Filled.AttachFile,
                                 contentDescription = null,
@@ -81,7 +86,10 @@ fun ChatBubble(message: MainViewModel.ChatMessage) {
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(1f),
                             )
-                            IconButton(onClick = { /* download handled by Coil */ }) {
+                            IconButton(onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                context.startActivity(intent)
+                            }) {
                                 Icon(
                                     Icons.Filled.Download,
                                     contentDescription = "Download",

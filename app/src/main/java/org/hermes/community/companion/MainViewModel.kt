@@ -539,6 +539,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Upload an attachment to a task. */
+    fun uploadTaskAttachment(taskId: String, bytes: ByteArray, fileName: String, mimeType: String) {
+        val c = client() ?: return
+        _kanbanError.value = null
+        viewModelScope.launch {
+            try {
+                c.uploadAttachment(bytes, fileName, mimeType)
+                loadTask(taskId)
+            } catch (e: Exception) {
+                _kanbanError.value = e.message
+            }
+        }
+    }
+
     fun addDependency(parentId: String, childId: String) {
         val c = client() ?: return
         _kanbanError.value = null

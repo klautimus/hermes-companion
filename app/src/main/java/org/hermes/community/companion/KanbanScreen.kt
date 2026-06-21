@@ -27,11 +27,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Context
+import android.net.Uri
 import java.util.concurrent.TimeUnit
 
 private val STATUS_COLUMNS = listOf("triage", "todo", "scheduled", "ready", "running", "blocked", "review", "done")
@@ -893,6 +898,18 @@ private fun TaskDetailSheet(
     val profiles by viewModel.profiles.collectAsState()
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+
+    // File picker for task attachments
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            val name = getFileName(context, it) ?: "file_${System.currentTimeMillis()}"
+            readFileBytes(context, it)?.let { bytes ->
+                val mime = guessMime(name)
+                viewModel.uploadTaskAttachment(task.id, bytes, name, mime)
+            }
+        }
+    }
 
     // Reset edit fields when task changes
     LaunchedEffect(task.id) {
@@ -1168,10 +1185,8 @@ private fun TaskDetailSheet(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text("Attachments (${task.attachments.size})", style = MaterialTheme.typography.titleSmall)
-                    IconButton(onClick = { /* TODO: file picker */ },
-                        enabled = false) {
-                        Icon(Icons.Filled.Upload, "Upload",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    IconButton(onClick = { filePicker.launch("*/*") }) {
+                        Icon(Icons.Filled.Upload, "Upload")
                     }
                 }
             }
@@ -1203,12 +1218,6 @@ private fun TaskDetailSheet(
                             Text("${sizeStr} • ${att.uploadedBy ?: "unknown"}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        IconButton(onClick = { /* TODO: delete attachment */ },
-                            enabled = false) {
-                            Icon(Icons.Filled.Delete, "Delete",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
                         }
                     }
                 }
@@ -2006,5 +2015,45 @@ private fun TaskCard(
                 }
             }
         }
+    }
+}
+
+/** Read a file's bytes from a content URI. */
+private fun readFileBytes(context: Context, uri: Uri): ByteArray? {
+    return try {
+        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+    } catch (e: Exception) {
+        android.util.Log.e("KanbanScreen", "Failed to read file", e)
+        null
+    }
+}
+
+/** Extract a display name from a content URI. */
+private fun getFileName(context: Context, uri: Uri): String? {
+    return try {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIdx >= 0 && cursor.moveToFirst()) cursor.getString(nameIdx) else null
+        }
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/** Guess MIME type from filename extension. */
+private fun guessMime(fileName: String): String {
+    val ext = fileName.substringAfterLast('.', "").lowercase()
+    return when (ext) {
+        "jpg", "jpeg" -> "image/jpeg"
+        "png" -> "image/png"
+        "gif" -> "image/gif"
+        "webp" -> "image/webp"
+        "pdf" -> "application/pdf"
+        "txt" -> "text/plain"
+        "html", "htm" -> "text/html"
+        "json" -> "application/json"
+        "mp4" -> "video/mp4"
+        "mp3" -> "audio/mpeg"
+        else -> "application/octet-stream"
     }
 }
