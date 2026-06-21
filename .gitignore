@@ -17,3 +17,19 @@ Thumbs.db
 # Hermes local-only
 __pycache__/
 keystore.properties
+
+# Daemon files (live in hermes-companion-daemon repo)
+venv/
+server/
+*.egg-info/
+pyproject.toml
+setup.py
+companion_cli.py
+config.py
+config_schema.py
+first_run.py
+email_2fa.py
+advisor-plans/
+.scratch/
+.codegraph/
+.pytest_cache/
